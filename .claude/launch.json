@@ -3,8 +3,14 @@
   "configurations": [
     {
       "name": "fintrack",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "fintrack-legacy-prototype",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["serve.js", "5173"],
+      "runtimeArgs": ["legacy-prototype/serve.js", "5173"],
       "port": 5173
     }
   ]
