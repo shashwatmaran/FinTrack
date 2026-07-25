@@ -6,10 +6,19 @@ FinTrack started as a single static HTML prototype driven by a custom runtime. I
 
 ```bash
 npm install
-npm run dev          # http://localhost:3000
+cp .env.example .env.local     # then set AUTH_SECRET (see below)
+npm run dev                    # http://localhost:3000
 ```
 
-No environment variables are required. The app runs end-to-end against a seeded in-memory dataset.
+Sign in with **`maya.alvarez@email.com`** / **`demo1234`**, or create a new account.
+
+`AUTH_SECRET` is the only required variable — sessions are signed with it. Generate one:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Without `MONGODB_URI` the app runs against a seeded in-memory store: fully functional, but data resets whenever the server restarts. See [Connecting a database](#connecting-a-database).
 
 ---
 
@@ -29,51 +38,83 @@ Every screen from the original prototype is ported and functional. The data laye
 | Insights | Partial — locally-computed insights work; LLM narratives deferred |
 | Activity feed, Profile | Done |
 | Add Expense / Create Group / Settle Up / Expense Detail modals | Done, with validation |
+| Authentication | Done — Auth.js email + password, hashed with bcrypt |
+| API layer | Done — route handlers with auth and per-group authorization |
+| MongoDB persistence | Done — enabled by setting `MONGODB_URI` |
 
 **Deliberately deferred** — everything below needs a credential, so it is stubbed behind a feature flag in [lib/env.ts](lib/env.ts) rather than half-built:
 
-- MongoDB Atlas persistence (`MONGODB_URI`) — data currently lives in memory and resets on reload
-- Auth.js sessions and OAuth (`AUTH_SECRET`, `GOOGLE_CLIENT_*`) — sign-in uses a local placeholder session
+- Google OAuth (`GOOGLE_CLIENT_*`) — email + password works without it
 - Transactional email (`RESEND_API_KEY`) — invites and password resets
 - LLM-written insight narratives (`ANTHROPIC_API_KEY`)
 - Blob storage (`BLOB_READ_WRITE_TOKEN`) — receipt attachments, exports
 - Sentry / PostHog
 
-Copy [.env.example](.env.example) to `.env.local` when you're ready to turn one of these on. Each flag in `lib/env.ts` gates exactly one feature, so they can be enabled independently.
+Each flag in `lib/env.ts` gates exactly one feature, so they can be enabled independently.
+
+---
+
+## Connecting a database
+
+Without `MONGODB_URI` everything works, but data lives in server memory and resets on restart. To persist it:
+
+1. Create a free **M0** cluster at [cloud.mongodb.com](https://cloud.mongodb.com).
+2. **Database Access** → add a user with *Read and write to any database*.
+3. **Network Access** → allowlist your current IP.
+4. **Connect → Drivers** → copy the connection string into `MONGODB_URI` in `.env.local`.
+   URL-encode special characters in the password (`@` → `%40`, `#` → `%23`, `/` → `%2F`).
+5. Verify and seed:
+
+```bash
+npm run db:check     # connection, collection counts, index counts
+npm run seed         # load the demo dataset (--reset to replace existing data)
+npm run dev
+```
+
+`db:check` separates "can't connect" from "connected but empty" — run it first whenever Atlas misbehaves. Indexes are created automatically on the first request; `seed` refuses to run against a non-empty database unless you pass `--reset`.
+
+Switching between the two modes needs no code change: the store is chosen at runtime in [lib/server/get-store.ts](lib/server/get-store.ts).
 
 ---
 
 ## Repository layout
 
 ```
+auth.ts              Auth.js config (Credentials provider)
+proxy.ts             route guard: redirects pages, 401s API calls
 app/
   (auth)/            sign in, sign up, forgot password
   (app)/             authenticated shell: dashboard, groups, expenses,
                      settlements, insights, activity, profile
-  layout.tsx         root layout + font + providers
+  api/               route handlers — the only path to data
   providers.tsx      TanStack Query client
 components/
   ui/                design-system primitives (Button, Card, Modal, Avatar…)
   shell/             sidebar, topbar, notifications, toast
   <feature>/         one folder per screen
   modals/            modal host + individual dialogs
-hooks/               TanStack Query hooks (the only place data is fetched)
+hooks/               TanStack Query hooks (the only place the client fetches)
 lib/
   types.ts           domain types
   balances.ts        split, net-balance, and debt-simplification math
   selectors.ts       derived views over the raw domain data
   insights.ts        locally-computed spending insights
-  api/mock-api.ts    in-memory stand-in for the future server API
+  validation.ts      Zod schemas shared by forms and route handlers
+  api/client.ts      typed fetch wrappers
+  db/                MongoDB client, document types, index definitions
+  server/            DataStore interface + memory and MongoDB implementations
   env.ts             validated config + feature flags
-stores/              Zustand stores (UI state and placeholder session only)
+scripts/             seed and db:check CLI utilities
+stores/              Zustand stores (UI state only)
 legacy-prototype/    the original single-file prototype, kept for design reference
 ```
 
 ### Where to make changes
 
 - **New screen** → a route under `app/(app)/`, a view component under `components/<feature>/`
-- **New data operation** → add it to `lib/api/mock-api.ts`, expose a hook in `hooks/use-fintrack-data.ts`
+- **New data operation** → add it to the `DataStore` interface, implement it in *both* stores, add a route handler, then expose a hook
 - **New business rule** → `lib/balances.ts` or `lib/selectors.ts`, never inside a component
+- **New authorization rule** → the store implementations, never the route handler
 - **New colour or shadow** → `@theme` in `app/globals.css`, then a class map in `lib/accent.ts`
 
 ---
@@ -83,9 +124,26 @@ legacy-prototype/    the original single-file prototype, kept for design referen
 ### Layers
 
 1. **Presentation** — App Router pages that stay thin; every screen delegates to one view component.
-2. **Domain** — pure functions in `lib/`. Split math, balance resolution, and settlement suggestions have no React or network dependency, which is what makes them straightforward to test and to move server-side later.
-3. **Data access** — `lib/api/mock-api.ts` returns exactly the shapes the future route handlers will return. Swapping it for `fetch` calls should not require touching a single component.
+2. **Domain** — pure functions in `lib/`. Split math, balance resolution, and settlement suggestions have no React or network dependency, which is what makes them straightforward to test and to run on either side of the wire.
+3. **Data access** — one `DataStore` interface ([lib/server/store-types.ts](lib/server/store-types.ts)) with two implementations. Route handlers depend only on the interface, so neither MongoDB nor the in-memory fallback leaks into the HTTP layer.
 4. **State** — a strict split, described below.
+
+### Authorization
+
+Every `DataStore` method takes the acting user's id, and **authorization is enforced in the store, not in the route handlers**. Route handlers are wrappers that resolve the session and hand `userId` to the store already resolved — so a new endpoint cannot forget to scope its query. Concretely:
+
+- Reads are filtered to groups the caller belongs to. There is no endpoint that returns all users; `/api/users` returns only people who share a group with you.
+- `fromUserId` on a settlement comes from the session, never the request body.
+- Only a settlement's recipient can confirm it. Either party can decline.
+- Confirming is a conditional update on `status: "pending"`, so a double-click can't resurrect a declined settlement.
+
+The route layer's only job is mapping thrown `ValidationError` / `ForbiddenError` / `NotFoundError` to 400 / 403 / 404, and never leaking a driver error to the client.
+
+### Auth flow
+
+Auth.js v5 with the Credentials provider and bcrypt-hashed passwords. Sessions are JWTs — the Credentials provider does not support database sessions — with the user record living in the store, so adding OAuth later is additive.
+
+[proxy.ts](proxy.ts) guards routes at the edge. It redirects unauthenticated *page* requests to `/signin` (preserving `?next=`), but returns a **401 JSON body for `/api/*`**: redirecting an API call to an HTML page hands `fetch` something it can't parse, which surfaces as a generic error instead of an expired session. The client mirrors this — a 401 from any endpoint bounces the user to sign-in.
 
 ### State management
 
@@ -93,28 +151,37 @@ The rule is that the query cache is authoritative for anything that will eventua
 
 | Tool | Owns |
 |---|---|
-| TanStack Query | all server-shaped data: users, groups, expenses, settlements, notifications, activity |
+| TanStack Query | all server data: users, groups, expenses, settlements, notifications, activity |
 | Zustand (`stores/ui-store.ts`) | modals, filters, toasts, the simplify-debts toggle |
-| Zustand (`stores/session-store.ts`) | the placeholder session, until Auth.js replaces it |
-| React Hook Form + Zod | form state and validation, with schemas shared between forms and the API layer |
+| Auth.js session | who you are |
+| React Hook Form + Zod | form state and validation, with schemas shared between forms and route handlers |
 
 Server data is never copied into a Zustand store.
 
 ### Domain model
 
-The collections below are what the in-memory store holds today and what the MongoDB Atlas schema will mirror:
+Documents use the domain id as `_id` (a string, not an `ObjectId`), so nothing is mapped between database and domain types.
 
-- `users` — profile, settings
-- `groups` — metadata, membership, type, colour
+- `users` — profile, `passwordHash`, colour
+- `groups` — metadata, `memberIds`, type, colour
 - `expenses` — amount, payer, splits, category, date, optional recurring rule
 - `settlements` — payer, receiver, amount, status (`pending` / `confirmed` / `declined`), method
 - `notifications`, `activity` — event streams
 
-Indexes to plan for when persistence lands: `userId`, `groupId`, `date`, `recurring.nextRunAt`, and the membership lookup on `groups.memberIds`.
+Indexes ([lib/db/indexes.ts](lib/db/indexes.ts), created on first request):
+
+| Collection | Index | Why |
+|---|---|---|
+| `users` | `email` **unique** | sign-in lookup; also what makes concurrent signups safe |
+| `groups` | `memberIds` | "which groups am I in?" — the hottest query in the app |
+| `expenses` | `groupId + date`, `splits.userId` | group feeds and per-user share queries |
+| `expenses` | `recurring.nextRunAt` *(sparse)* | the future cron job scans only this |
+| `settlements` | `groupId + createdAt`, `fromUserId + status`, `toUserId + status` | pending-confirmation lookups |
+| `notifications` | `userId + createdAt` | the notification panel |
 
 ### Two decisions worth knowing
 
-**Settlements are escrowed.** A logged payment enters as `pending` and does *not* move any balance. Only the recipient can confirm it, at which point it counts. `computeNetBalances` and `computeDebtFlows` both filter to `status === "confirmed"`. This is deliberate: it means a payer cannot unilaterally mark a debt cleared.
+**Settlements are escrowed.** A logged payment enters as `pending` and does *not* move any balance. Only the recipient can confirm it, at which point it counts. `computeNetBalances` and `computeDebtFlows` both filter to `status === "confirmed"`. This is deliberate: it means a payer cannot unilaterally mark a debt cleared — and it is enforced server-side, not just in the UI.
 
 **Splits are computed in integer cents.** `equalSplit` distributes the remainder one cent at a time rather than rounding each share, so the splits always sum exactly to the expense total.
 
@@ -140,13 +207,13 @@ Every prototype screen ported to components. Loading and empty states, keyboard-
 
 TanStack Query for all server-shaped reads and writes, cache invalidation on mutation, Zustand confined to UI state.
 
-### Phase 5 — Persistence 🔒 needs `MONGODB_URI`
+### Phase 5 — Persistence ✅
 
-Replace `lib/api/mock-api.ts` with route handlers backed by MongoDB Atlas. Add indexes, input validation on every write path, and permission checks scoped to group membership. The hook signatures in `hooks/` should not change.
+Route handlers backed by MongoDB, behind a `DataStore` interface with an in-memory fallback. Indexes, validation on every write path, and permission checks scoped to group membership. Hook signatures did not change.
 
-### Phase 6 — Authentication 🔒 needs `AUTH_SECRET`
+### Phase 6 — Authentication ✅
 
-Auth.js with the MongoDB adapter. Replace `stores/session-store.ts` with real sessions, move the route guard from the client `AppShell` into middleware, and add server-side access checks.
+Auth.js email + password with bcrypt. Real sessions, edge route guard in `proxy.ts`, and server-side access checks on every endpoint.
 
 ### Phase 7 — Notifications and recurring jobs 🔒 needs `RESEND_API_KEY`
 
@@ -158,7 +225,9 @@ A narrative layer on top of the deterministic insights already in `lib/insights.
 
 ### Phase 9 — Hardening and deploy
 
-Tests for the domain layer first — `balances.ts` is pure and is where a bug costs the most. Then rate limiting, Sentry, and Vercel preview/production environments with least-privilege Atlas credentials.
+Tests for the domain layer first — `balances.ts` is pure and is where a bug costs the most — then for the authorization rules in the stores. After that: rate limiting on `/api/signup` and sign-in, Sentry, and Vercel preview/production environments.
+
+For production Atlas, create a **separate database user scoped to the `fintrack` database only**, rather than reusing the read/write-any-database user from local setup, and replace the IP allowlist with Vercel's egress addresses or a peering connection.
 
 ---
 

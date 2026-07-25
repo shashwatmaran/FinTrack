@@ -1,35 +1,59 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label } from "@/components/ui/input";
-import { useSessionStore } from "@/stores/session-store";
+import { ApiError, api } from "@/lib/api/client";
+import { signUpSchema } from "@/lib/validation";
 
-const schema = z.object({
-  name: z.string().min(2, "Tell us your name"),
-  email: z.string().min(1, "Email is required").email("Enter a valid email"),
-  password: z.string().min(8, "At least 8 characters"),
+const formSchema = signUpSchema.extend({
   terms: z.literal(true, { message: "Please accept the terms to continue" }),
 });
 
-type Values = z.infer<typeof schema>;
+type Values = z.infer<typeof formSchema>;
 
 export function SignUpForm() {
   const router = useRouter();
-  const signIn = useSessionStore((s) => s.signIn);
+  const [formError, setFormError] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
-    formState: { errors },
-  } = useForm<Values>({ resolver: zodResolver(schema) });
+    formState: { errors, isSubmitting },
+  } = useForm<Values>({ resolver: zodResolver(formSchema) });
 
-  const onSubmit = handleSubmit(() => {
-    signIn();
+  const onSubmit = handleSubmit(async ({ terms: _terms, ...values }) => {
+    setFormError(null);
+    try {
+      await api.signUp(values);
+    } catch (error) {
+      setFormError(
+        error instanceof ApiError ? error.message : "Could not create your account. Try again."
+      );
+      return;
+    }
+
+    // Account exists; establish the session through the same provider that
+    // normal sign-in uses rather than minting a token here.
+    const result = await signIn("credentials", {
+      email: values.email,
+      password: values.password,
+      redirect: false,
+    });
+    if (result?.error) {
+      setFormError("Account created, but sign-in failed. Try signing in.");
+      return;
+    }
+
     router.push("/dashboard");
+    router.refresh();
   });
 
   return (
@@ -39,13 +63,26 @@ export function SignUpForm() {
         Free forever for up to 3 groups.
       </p>
 
+      {formError && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-[10px] border-2 border-ft-ink bg-ft-red px-3.5 py-3">
+          <AlertCircle size={18} strokeWidth={2.4} className="mt-px flex-none" />
+          <p className="text-[13px] font-bold">{formError}</p>
+        </div>
+      )}
+
       <Label htmlFor="name">Full name</Label>
-      <Input id="name" placeholder="Maya Alvarez" {...register("name")} />
+      <Input id="name" autoComplete="name" placeholder="Maya Alvarez" {...register("name")} />
       <FieldError>{errors.name?.message}</FieldError>
 
       <div className="mt-4.5">
         <Label htmlFor="email">Email</Label>
-        <Input id="email" type="email" placeholder="maya@example.com" {...register("email")} />
+        <Input
+          id="email"
+          type="email"
+          autoComplete="email"
+          placeholder="maya@example.com"
+          {...register("email")}
+        />
         <FieldError>{errors.email?.message}</FieldError>
       </div>
 
@@ -54,6 +91,7 @@ export function SignUpForm() {
         <Input
           id="password"
           type="password"
+          autoComplete="new-password"
           placeholder="At least 8 characters"
           {...register("password")}
         />
@@ -73,8 +111,14 @@ export function SignUpForm() {
       </label>
       <FieldError>{errors.terms?.message}</FieldError>
 
-      <Button type="submit" variant="accent" size="lg" className="mt-5.5 w-full">
-        Create account
+      <Button
+        type="submit"
+        variant="accent"
+        size="lg"
+        className="mt-5.5 w-full"
+        disabled={isSubmitting}
+      >
+        {isSubmitting ? "Creating account…" : "Create account"}
       </Button>
 
       <p className="mt-6 text-center text-[13.5px] font-medium text-ft-muted">

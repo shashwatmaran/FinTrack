@@ -81,7 +81,7 @@ export interface NotificationItem {
   title: string;
   body: string;
   read: boolean;
-  timeLabel: string;
+  createdAt: string;
 }
 
 export interface ActivityItem {
@@ -89,7 +89,7 @@ export interface ActivityItem {
   groupId: string;
   actorId: string;
   message: string;
-  timeLabel: string;
+  createdAt: string;
 }
 
 export interface ActivityDayGroup {

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Plus, Sparkles, UserPlus, ArrowLeftRight } from "lucide-react";
+import { ArrowUpRight, Plus, Sparkles, UserPlus, Users, ArrowLeftRight } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { AvatarStack } from "@/components/ui/avatar";
 import { ExpenseRow } from "@/components/expenses/expense-row";
+import { EmptyState } from "@/components/common/empty-state";
 import { PageSkeleton } from "@/components/common/loading";
 import { SpendChart } from "./spend-chart";
 import { ACCENT_BG } from "@/lib/accent";
@@ -30,14 +31,36 @@ import {
 import { useUiStore } from "@/stores/ui-store";
 
 export function DashboardView() {
-  const { data: currentUser } = useCurrentUser();
+  const { data: currentUser, isPending: userPending } = useCurrentUser();
   const { data: users = [] } = useUsers();
-  const { data: groups = [] } = useGroups();
-  const { data: expenses = [] } = useExpenses();
+  const { data: groups = [], isPending: groupsPending } = useGroups();
+  const { data: expenses = [], isPending: expensesPending } = useExpenses();
   const { data: settlements = [] } = useSettlements();
   const openModal = useUiStore((s) => s.openModal);
 
-  if (!currentUser || groups.length === 0 || expenses.length === 0) return <PageSkeleton />;
+  // Only a pending query is "loading". An empty result is a real answer —
+  // conflating the two left new accounts staring at a skeleton forever.
+  if (userPending || groupsPending || expensesPending || !currentUser) {
+    return <PageSkeleton />;
+  }
+
+  if (groups.length === 0) {
+    return (
+      <div className="mx-auto max-w-[640px] animate-ft-slide">
+        <EmptyState
+          icon={Users}
+          title="Welcome to FinTrack"
+          description="Create a group to start splitting expenses with the people you share costs with."
+          action={
+            <Button size="lg" onClick={() => openModal({ type: "create-group" })}>
+              <Plus size={17} strokeWidth={3} />
+              Create your first group
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   const byId = usersById(users);
   const totals = headlineTotals(currentUser.id, expenses, settlements);

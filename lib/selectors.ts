@@ -1,5 +1,13 @@
 import { computeDebtFlows, computeNetBalances, simplifyDebts } from "./balances";
-import type { AppUser, DebtFlow, Expense, Group, Settlement } from "./types";
+import type {
+  ActivityDayGroup,
+  ActivityItem,
+  AppUser,
+  DebtFlow,
+  Expense,
+  Group,
+  Settlement,
+} from "./types";
 
 export function usersById(users: AppUser[]): Record<string, AppUser> {
   return Object.fromEntries(users.map((u) => [u.id, u]));
@@ -173,4 +181,35 @@ export function categoryTotals(
 
 export function currentMonthKey(now = new Date()) {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Buckets a flat activity feed into Today / Yesterday / date headings. */
+export function groupActivityByDay(
+  items: ActivityItem[],
+  now = new Date()
+): ActivityDayGroup[] {
+  const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+  const today = dayKey(now);
+  const yesterday = dayKey(new Date(now.getTime() - 86_400_000));
+
+  const buckets = new Map<string, ActivityItem[]>();
+  for (const item of [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
+    const key = item.createdAt.slice(0, 10);
+    const existing = buckets.get(key);
+    if (existing) existing.push(item);
+    else buckets.set(key, [item]);
+  }
+
+  return Array.from(buckets.entries()).map(([key, dayItems]) => ({
+    day:
+      key === today
+        ? "Today"
+        : key === yesterday
+          ? "Yesterday"
+          : new Date(`${key}T00:00:00`).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            }),
+    items: dayItems,
+  }));
 }

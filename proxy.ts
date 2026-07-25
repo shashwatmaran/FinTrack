@@ -1,0 +1,44 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/auth";
+
+const PUBLIC_PATHS = ["/signin", "/signup", "/forgot-password"];
+
+/**
+ * Route protection, server-side. Previously the shell redirected after
+ * hydration, which meant unauthenticated HTML was briefly served; now an
+ * unauthenticated request never reaches an app page at all.
+ *
+ * This is Next 16's `proxy` convention — the rename of `middleware`.
+ */
+export default auth((request) => {
+  const { pathname } = request.nextUrl;
+  const signedIn = Boolean(request.auth?.user?.id);
+  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const isApi = pathname.startsWith("/api/");
+
+  if (!signedIn && !isApi && !isPublic) {
+    const url = new URL("/signin", request.nextUrl);
+    // Preserve where they were headed so sign-in can return them there.
+    if (pathname !== "/") url.searchParams.set("next", pathname);
+    return NextResponse.redirect(url);
+  }
+
+  // API routes must answer with JSON. Redirecting them to the sign-in page
+  // would hand `fetch` an HTML body, which fails to parse and surfaces as a
+  // generic error instead of an expired-session signal the client can act on.
+  if (!signedIn && isApi) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+
+  if (signedIn && isPublic) {
+    return NextResponse.redirect(new URL("/dashboard", request.nextUrl));
+  }
+
+  return NextResponse.next();
+});
+
+export const config = {
+  // Everything except Next internals, the auth endpoints themselves, and
+  // static assets. /api/signup is excluded so signing up works while signed out.
+  matcher: ["/((?!api/auth|api/signup|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+};

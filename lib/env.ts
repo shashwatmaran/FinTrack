@@ -6,29 +6,58 @@ import { z } from "zod";
  * feature checks its own flag before assuming a client exists. Promote a var
  * from `.optional()` to required only once that phase actually ships.
  */
+/**
+ * `.env` files can't express "absent" — an unfilled key reads as "". Treat
+ * empty strings as undefined so a blank placeholder means "not configured"
+ * rather than "configured with an invalid value".
+ */
+const optionalString = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z.string().optional()
+);
+
+const optionalUrl = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z.string().url().optional()
+);
+
 const serverSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
-  // Phase: persistence
-  MONGODB_URI: z.string().url().optional(),
-  MONGODB_DB: z.string().optional(),
+  // Phase: persistence.
+  // Not z.string().url() — mongodb+srv:// is not a URL the WHATWG parser
+  // accepts, and validating the scheme is the check that actually matters.
+  MONGODB_URI: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z
+      .string()
+      .refine(
+        (v) => v.startsWith("mongodb://") || v.startsWith("mongodb+srv://"),
+        "Must start with mongodb:// or mongodb+srv://"
+      )
+      .optional()
+  ),
+  MONGODB_DB: optionalString,
 
   // Phase: authentication
-  AUTH_SECRET: z.string().min(1).optional(),
-  AUTH_URL: z.string().url().optional(),
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  AUTH_SECRET: optionalString,
+  AUTH_URL: optionalUrl,
+  GOOGLE_CLIENT_ID: optionalString,
+  GOOGLE_CLIENT_SECRET: optionalString,
 
   // Phase: notifications
-  RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().email().optional(),
+  RESEND_API_KEY: optionalString,
+  EMAIL_FROM: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().email().optional()
+  ),
 
   // Phase: AI insights
-  ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_API_KEY: optionalString,
 
   // Phase: storage + observability
-  BLOB_READ_WRITE_TOKEN: z.string().optional(),
-  SENTRY_DSN: z.string().url().optional(),
+  BLOB_READ_WRITE_TOKEN: optionalString,
+  SENTRY_DSN: optionalUrl,
 });
 
 const parsed = serverSchema.safeParse(process.env);

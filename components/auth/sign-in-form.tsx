@@ -1,36 +1,40 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label } from "@/components/ui/input";
-import { useSessionStore } from "@/stores/session-store";
-
-const schema = z.object({
-  email: z.string().min(1, "Email is required").email("Enter a valid email"),
-  password: z.string().min(8, "At least 8 characters"),
-});
-
-type Values = z.infer<typeof schema>;
+import { signInSchema, type SignInValues } from "@/lib/validation";
 
 export function SignInForm() {
   const router = useRouter();
-  const signIn = useSessionStore((s) => s.signIn);
+  const searchParams = useSearchParams();
+  const [formError, setFormError] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<Values>({
-    resolver: zodResolver(schema),
-    defaultValues: { email: "maya.alvarez@email.com", password: "demo-password" },
-  });
+  } = useForm<SignInValues>({ resolver: zodResolver(signInSchema) });
 
-  const onSubmit = handleSubmit(() => {
-    signIn();
-    router.push("/dashboard");
+  const onSubmit = handleSubmit(async (values) => {
+    setFormError(null);
+    const result = await signIn("credentials", { ...values, redirect: false });
+
+    if (result?.error) {
+      // Deliberately vague: don't reveal whether the email exists.
+      setFormError("That email and password don't match an account.");
+      return;
+    }
+
+    const next = searchParams.get("next");
+    router.push(next?.startsWith("/") ? next : "/dashboard");
+    router.refresh();
   });
 
   return (
@@ -40,8 +44,21 @@ export function SignInForm() {
         Sign in to keep your groups square.
       </p>
 
+      {formError && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-[10px] border-2 border-ft-ink bg-ft-red px-3.5 py-3">
+          <AlertCircle size={18} strokeWidth={2.4} className="mt-px flex-none" />
+          <p className="text-[13px] font-bold">{formError}</p>
+        </div>
+      )}
+
       <Label htmlFor="email">Email</Label>
-      <Input id="email" type="email" placeholder="maya@example.com" {...register("email")} />
+      <Input
+        id="email"
+        type="email"
+        autoComplete="email"
+        placeholder="maya@example.com"
+        {...register("email")}
+      />
       <FieldError>{errors.email?.message}</FieldError>
 
       <div className="mt-4.5 mb-[7px] flex items-center justify-between">
@@ -55,11 +72,17 @@ export function SignInForm() {
           Forgot?
         </Link>
       </div>
-      <Input id="password" type="password" placeholder="••••••••" {...register("password")} />
+      <Input
+        id="password"
+        type="password"
+        autoComplete="current-password"
+        placeholder="••••••••"
+        {...register("password")}
+      />
       <FieldError>{errors.password?.message}</FieldError>
 
-      <Button type="submit" size="lg" className="mt-5.5 w-full" shadow disabled={isSubmitting}>
-        Sign in
+      <Button type="submit" size="lg" className="mt-5.5 w-full" disabled={isSubmitting}>
+        {isSubmitting ? "Signing in…" : "Sign in"}
       </Button>
 
       <div className="my-5.5 flex items-center gap-3">
@@ -72,7 +95,7 @@ export function SignInForm() {
         variant="secondary"
         size="lg"
         className="w-full"
-        title="OAuth provider setup is deferred until credentials are configured"
+        title="Google sign-in needs OAuth client credentials"
         disabled
       >
         Continue with Google — coming soon

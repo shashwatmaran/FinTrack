@@ -29,15 +29,17 @@ type Tab = (typeof TABS)[number];
 
 export function GroupDetailView({ groupId }: { groupId: string }) {
   const [tab, setTab] = useState<Tab>("Overview");
-  const { data: currentUser } = useCurrentUser();
+  const { data: currentUser, isPending: userPending } = useCurrentUser();
   const { data: users = [] } = useUsers();
-  const { data: groups = [] } = useGroups();
+  const { data: groups = [], isPending: groupsPending } = useGroups();
   const { data: expenses = [] } = useExpenses();
   const { data: settlements = [] } = useSettlements();
   const openModal = useUiStore((s) => s.openModal);
 
-  if (!currentUser || groups.length === 0) return <PageSkeleton />;
+  if (userPending || groupsPending || !currentUser) return <PageSkeleton />;
 
+  // Not in the list means either it doesn't exist or you're not a member —
+  // the API deliberately doesn't distinguish the two.
   const group = groups.find((g) => g.id === groupId);
   if (!group) {
     return (

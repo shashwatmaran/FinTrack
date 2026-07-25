@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,6 @@ import { PageSkeleton } from "@/components/common/loading";
 import { ACCENT_BG } from "@/lib/accent";
 import { cn } from "@/lib/utils";
 import { useCurrentUser, useExpenses, useGroups } from "@/hooks/use-fintrack-data";
-import { useSessionStore } from "@/stores/session-store";
 import { useUiStore } from "@/stores/ui-store";
 
 const CURRENCIES = [
@@ -65,8 +64,6 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
 }
 
 export function ProfileView() {
-  const router = useRouter();
-  const signOut = useSessionStore((s) => s.signOut);
   const showToast = useUiStore((s) => s.showToast);
   const openModal = useUiStore((s) => s.openModal);
 
@@ -108,13 +105,7 @@ export function ProfileView() {
           >
             Edit profile
           </Button>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              signOut();
-              router.push("/signin");
-            }}
-          >
+          <Button variant="secondary" onClick={() => signOut({ callbackUrl: "/signin" })}>
             <LogOut size={16} strokeWidth={2.4} />
             Sign out
           </Button>

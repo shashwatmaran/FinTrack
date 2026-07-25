@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import * as api from "@/lib/api/mock-api";
+import { api } from "@/lib/api/client";
 
 export const queryKeys = {
   currentUser: ["current-user"] as const,
@@ -74,6 +74,8 @@ export function useCreateGroup() {
     mutationFn: api.createGroup,
     onSuccess: () => {
       client.invalidateQueries({ queryKey: queryKeys.groups });
+      // A new group changes who is visible to you.
+      client.invalidateQueries({ queryKey: queryKeys.users });
       client.invalidateQueries({ queryKey: queryKeys.activity });
     },
   });

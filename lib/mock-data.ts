@@ -1,6 +1,6 @@
 import { equalSplit } from "./balances";
 import type {
-  ActivityDayGroup,
+  ActivityItem,
   AppUser,
   Expense,
   Group,
@@ -9,14 +9,24 @@ import type {
 } from "./types";
 
 /**
- * Local, in-memory seed data standing in for the future MongoDB Atlas
- * collections described in the README. Every function in `data-store.ts`
- * that reads/writes this data is written so the implementation can be
- * swapped for real API calls later without touching the components that
- * call the hooks in `hooks/`.
+ * Seed dataset. Used two ways: it populates the in-memory store when
+ * MONGODB_URI is absent, and `scripts/seed.ts` writes the same records into
+ * Atlas so both modes show identical data.
  */
 
-export const CURRENT_USER_ID = "u1";
+/** Password for every seeded account, in both memory and seeded Atlas data. */
+export const DEMO_PASSWORD = "demo1234";
+
+const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
+
+/** Seed timestamps are relative to load time so the feed never looks stale. */
+function ago(ms: number): string {
+  return new Date(Date.now() - ms).toISOString();
+}
+
+/** The account the seeded notifications and demo sign-in belong to. */
+export const DEMO_USER_ID = "u1";
 
 export const USERS: AppUser[] = [
   { id: "u1", name: "Maya Alvarez", email: "maya.alvarez@email.com", initials: "MA", color: "ft-lime" },
@@ -101,35 +111,21 @@ export const SETTLEMENTS: Settlement[] = [
   { id: "s4", groupId: "g4", fromUserId: "u2", toUserId: "u1", amount: 60.0, status: "pending", method: "Venmo", createdAt: "2026-07-24" },
 ];
 
+/** Notifications belong to the demo user; the seed script scopes them to u1. */
 export const NOTIFICATIONS: NotificationItem[] = [
-  { id: "n1", title: "Jordan added an expense", body: "Weekend groceries · $54.10 in Me & Jordan", read: false, timeLabel: "2h ago" },
-  { id: "n2", title: "Payment pending", body: "Riley logged $24.00 to Jordan in Lunch Crew — awaiting confirmation", read: false, timeLabel: "5h ago" },
-  { id: "n3", title: "Settle up reminder", body: "You owe Jordan $60.00 in Me & Jordan", read: false, timeLabel: "1d ago" },
-  { id: "n4", title: "You were added to Portugal Trip", body: "Sam invited you to a new group", read: true, timeLabel: "1d ago" },
-  { id: "n5", title: "Sam confirmed your payment", body: "$130.00 in Portugal Trip", read: true, timeLabel: "3d ago" },
-  { id: "n6", title: "Monthly report ready", body: "Your July spending breakdown is ready to view", read: true, timeLabel: "4d ago" },
+  { id: "n1", title: "Jordan added an expense", body: "Weekend groceries · $54.10 in Me & Jordan", read: false, createdAt: ago(2 * HOUR) },
+  { id: "n2", title: "Payment pending", body: "Riley logged $24.00 to Jordan in Lunch Crew — awaiting confirmation", read: false, createdAt: ago(5 * HOUR) },
+  { id: "n3", title: "Settle up reminder", body: "You owe Jordan $60.00 in Me & Jordan", read: false, createdAt: ago(DAY) },
+  { id: "n4", title: "You were added to Portugal Trip", body: "Sam invited you to a new group", read: true, createdAt: ago(DAY + 3 * HOUR) },
+  { id: "n5", title: "Sam confirmed your payment", body: "$130.00 in Portugal Trip", read: true, createdAt: ago(3 * DAY) },
+  { id: "n6", title: "Monthly report ready", body: "Your July spending breakdown is ready to view", read: true, createdAt: ago(4 * DAY) },
 ];
 
-export const ACTIVITY: ActivityDayGroup[] = [
-  {
-    day: "Today",
-    items: [
-      { id: "a1", groupId: "g4", actorId: "u2", message: "Jordan added **Weekend groceries** ($54.10) to Me & Jordan", timeLabel: "2h ago" },
-      { id: "a2", groupId: "g1", actorId: "u4", message: "Riley logged a **$24.00** payment to Jordan in Lunch Crew", timeLabel: "5h ago" },
-    ],
-  },
-  {
-    day: "Yesterday",
-    items: [
-      { id: "a3", groupId: "g2", actorId: "u3", message: "Sam invited you to **Portugal Trip**", timeLabel: "1d ago" },
-      { id: "a4", groupId: "g4", actorId: "u2", message: "Jordan logged a **$60.00** payment to you in Me & Jordan", timeLabel: "1d ago" },
-    ],
-  },
-  {
-    day: "Jul 20",
-    items: [
-      { id: "a5", groupId: "g1", actorId: "u2", message: "Jordan added **Thai takeout** ($62.40) to Lunch Crew", timeLabel: "5d ago" },
-      { id: "a6", groupId: "g2", actorId: "u5", message: "Casey added **Tuk-tuk tour** ($90.00) to Portugal Trip", timeLabel: "5d ago" },
-    ],
-  },
+export const ACTIVITY: ActivityItem[] = [
+  { id: "a1", groupId: "g4", actorId: "u2", message: "Jordan added **Weekend groceries** ($54.10) to Me & Jordan", createdAt: ago(2 * HOUR) },
+  { id: "a2", groupId: "g1", actorId: "u4", message: "Riley logged a **$24.00** payment to Jordan in Lunch Crew", createdAt: ago(5 * HOUR) },
+  { id: "a3", groupId: "g2", actorId: "u3", message: "Sam invited you to **Portugal Trip**", createdAt: ago(DAY + 2 * HOUR) },
+  { id: "a4", groupId: "g4", actorId: "u2", message: "Jordan logged a **$60.00** payment to you in Me & Jordan", createdAt: ago(DAY + 6 * HOUR) },
+  { id: "a5", groupId: "g1", actorId: "u2", message: "Jordan added **Thai takeout** ($62.40) to Lunch Crew", createdAt: ago(5 * DAY) },
+  { id: "a6", groupId: "g2", actorId: "u5", message: "Casey added **Tuk-tuk tour** ($90.00) to Portugal Trip", createdAt: ago(5 * DAY + 3 * HOUR) },
 ];

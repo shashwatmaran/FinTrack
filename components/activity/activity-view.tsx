@@ -6,7 +6,8 @@ import { Avatar } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/common/empty-state";
 import { PageSkeleton } from "@/components/common/loading";
 import { ACCENT_BG } from "@/lib/accent";
-import { usersById } from "@/lib/selectors";
+import { formatRelativeTime } from "@/lib/format";
+import { groupActivityByDay, usersById } from "@/lib/selectors";
 import { cn } from "@/lib/utils";
 import { useActivity, useCurrentUser, useGroups, useUsers } from "@/hooks/use-fintrack-data";
 import { useUiStore } from "@/stores/ui-store";
@@ -32,7 +33,7 @@ export function ActivityView() {
   const { data: currentUser } = useCurrentUser();
   const { data: users = [] } = useUsers();
   const { data: groups = [] } = useGroups();
-  const { data: days = [] } = useActivity();
+  const { data: items = [] } = useActivity();
 
   const filter = useUiStore((s) => s.activityGroupFilter);
   const setFilter = useUiStore((s) => s.setActivityGroupFilter);
@@ -41,12 +42,9 @@ export function ActivityView() {
 
   const byId = usersById(users);
   const mine = groups.filter((g) => g.memberIds.includes(currentUser.id));
-  const filtered = days
-    .map((day) => ({
-      ...day,
-      items: day.items.filter((item) => filter === "all" || item.groupId === filter),
-    }))
-    .filter((day) => day.items.length > 0);
+  const filtered = groupActivityByDay(
+    items.filter((item) => filter === "all" || item.groupId === filter)
+  );
 
   return (
     <div className="mx-auto max-w-[820px] animate-ft-slide">
@@ -108,7 +106,7 @@ export function ActivityView() {
                         </span>
                       )}
                       <span className="text-xs font-semibold whitespace-nowrap text-ft-muted">
-                        {item.timeLabel}
+                        {formatRelativeTime(item.createdAt)}
                       </span>
                     </div>
                   );

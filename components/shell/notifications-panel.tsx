@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useMarkNotificationsRead, useNotifications } from "@/hooks/use-fintrack-data";
 import { useUiStore } from "@/stores/ui-store";
+import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export function NotificationsPanel() {
@@ -55,7 +56,9 @@ export function NotificationsPanel() {
               <div className={cn("min-w-0", n.read && "pl-4")}>
                 <p className="text-[13.5px] font-bold">{n.title}</p>
                 <p className="text-[12px] leading-[1.4] font-medium text-ft-muted">{n.body}</p>
-                <p className="mt-1 text-[11px] font-semibold text-ft-muted">{n.timeLabel}</p>
+                <p className="mt-1 text-[11px] font-semibold text-ft-muted">
+                  {formatRelativeTime(n.createdAt)}
+                </p>
               </div>
             </div>
           </div>
