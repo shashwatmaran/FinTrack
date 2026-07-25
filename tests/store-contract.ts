@@ -389,6 +389,45 @@ export function runStoreContract(harness: StoreHarness) {
       });
     });
 
+    describe("insight narratives", () => {
+      const narrative = {
+        text: "You spent more on food this month.",
+        model: "llama-3.3-70b",
+        generatedAt: "2026-07-25T10:00:00.000Z",
+        inputHash: "abc123",
+      };
+
+      it("returns null before anything has been saved", async () => {
+        expect(await store.getNarrative(DEMO)).toBeNull();
+      });
+
+      it("round-trips a saved narrative", async () => {
+        await store.saveNarrative(DEMO, narrative);
+        expect(await store.getNarrative(DEMO)).toEqual(narrative);
+      });
+
+      it("replaces rather than accumulating on regeneration", async () => {
+        await store.saveNarrative(DEMO, narrative);
+        await store.saveNarrative(DEMO, { ...narrative, text: "Updated.", inputHash: "def456" });
+
+        const stored = await store.getNarrative(DEMO);
+        expect(stored?.text).toBe("Updated.");
+        expect(stored?.inputHash).toBe("def456");
+      });
+
+      it("scopes narratives per user", async () => {
+        await store.saveNarrative(DEMO, narrative);
+        const other = await store.createUser({
+          name: "Narrative Other",
+          email: "narrative-other@example.com",
+          password: "supersecret1",
+        });
+
+        expect(await store.getNarrative(other.id)).toBeNull();
+        expect((await store.getNarrative(DEMO))?.text).toBe(narrative.text);
+      });
+    });
+
     describe("activity", () => {
       it("is scoped to your groups", async () => {
         const groupIds = new Set((await store.getGroups(DEMO)).map((g) => g.id));

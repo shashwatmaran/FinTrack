@@ -52,8 +52,18 @@ const serverSchema = z.object({
     z.string().email().optional()
   ),
 
-  // Phase: AI insights
-  ANTHROPIC_API_KEY: optionalString,
+  /**
+   * Phase: AI insights.
+   *
+   * Any OpenAI-compatible /chat/completions endpoint. That shape is the de
+   * facto standard for serving open-weight models, so the same client works
+   * against Ollama locally (no key, no cost) and a hosted free tier such as
+   * Groq or OpenRouter in production, where a local model can't run.
+   */
+  AI_BASE_URL: optionalUrl,
+  AI_MODEL: optionalString,
+  /** Optional: Ollama and other local servers need no key. */
+  AI_API_KEY: optionalString,
 
   // Phase: storage + observability
   BLOB_READ_WRITE_TOKEN: optionalString,
@@ -80,7 +90,8 @@ export const features = {
   auth: Boolean(env.AUTH_SECRET && env.MONGODB_URI),
   oauthGoogle: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
   email: Boolean(env.RESEND_API_KEY && env.EMAIL_FROM),
-  aiInsights: Boolean(env.ANTHROPIC_API_KEY),
+  // No API key in the condition on purpose — a local Ollama server needs none.
+  aiInsights: Boolean(env.AI_BASE_URL && env.AI_MODEL),
   blobStorage: Boolean(env.BLOB_READ_WRITE_TOKEN),
   errorReporting: Boolean(env.SENTRY_DSN),
 } as const;

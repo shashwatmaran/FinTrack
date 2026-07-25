@@ -80,16 +80,16 @@ describe("buildInsights", () => {
     const insights = buildInsights(
       "me",
       [
-        expense("small", 20, "2026-07-01"),
-        expense("Airbnb", 680, "2026-07-05"),
-        expense("medium", 100, "2026-07-06"),
+        expense("small", 2000, "2026-07-01"),
+        expense("Homestay", 48000, "2026-07-05"),
+        expense("medium", 10000, "2026-07-06"),
       ],
       NOW
     );
     const largest = insights.find((i) => i.id === "largest-expense");
-    expect(largest?.delta).toBe("$680.00");
-    expect(largest?.body).toContain("Airbnb");
-    expect(largest?.body).toContain("$340.00"); // half of 680
+    expect(largest?.delta).toBe("₹48,000.00");
+    expect(largest?.body).toContain("Homestay");
+    expect(largest?.body).toContain("₹24,000.00"); // half of 48,000
   });
 
   it("ignores expenses outside the current month when picking the largest", () => {

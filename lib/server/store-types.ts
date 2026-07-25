@@ -77,6 +77,21 @@ export interface DataStore {
   markNotificationsRead(actorId: string): Promise<NotificationItem[]>;
 
   getActivity(actorId: string): Promise<ActivityItem[]>;
+
+  /**
+   * Cached model-written narrative for the insights page. Stored per user with
+   * the hash of the facts it was written from, so it can be invalidated when
+   * the underlying numbers change.
+   */
+  getNarrative(actorId: string): Promise<StoredNarrative | null>;
+  saveNarrative(actorId: string, narrative: StoredNarrative): Promise<void>;
+}
+
+export interface StoredNarrative {
+  text: string;
+  model: string;
+  generatedAt: string;
+  inputHash: string;
 }
 
 /** Thrown for authorization failures; route handlers map this to HTTP 403. */

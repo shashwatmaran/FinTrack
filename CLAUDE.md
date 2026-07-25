@@ -27,7 +27,9 @@ Tests need no running database — `tests/mongo-store.test.ts` starts a real
 - **Server data never goes into Zustand.** TanStack Query owns it. `stores/ui-store.ts` is for modals, filters, and toasts only.
 - **Empty is not loading.** Use `isPending` from the query to decide whether to show a skeleton. Treating `data.length === 0` as loading strands new accounts on a permanent skeleton.
 - **Accent colours are never interpolated into class names.** Tailwind can only see complete strings, so go through the maps in `lib/accent.ts`.
-- **Money is handled in integer cents when splitting.** See `equalSplit` — per-share rounding would let splits drift off the total.
+- **Money is handled in integer paise when splitting.** See `equalSplit` — per-share rounding would let splits drift off the total.
+- **Single currency: INR.** `formatCurrency` takes no currency argument. Don't add a per-user currency preference — in a shared-expense app the currency belongs to the money, not the viewer, so a display-only setting would show one debt as ₹500 to one member and $500 to another. Real multi-currency needs a currency per group plus FX rates.
+- **The model never does arithmetic.** Figures are computed in `lib/insights.ts` and passed to the model as text. `lib/ai/narrate.ts` discards any completion containing a number that wasn't supplied — a plausible wrong figure is worse than no narrative.
 - **`/api/*` returns JSON, always.** `proxy.ts` 401s API calls rather than redirecting them; a redirect would hand `fetch` an HTML body.
 
 ## Tests
@@ -51,7 +53,9 @@ The neobrutalist look (thick borders, hard offset shadows, lime/yellow/pink/purp
 
 Anything needing a credential is feature-flagged in `lib/env.ts` and surfaces in the UI as an explicit "needs credentials" state rather than a broken control. When enabling one, flip it in `lib/env.ts`, not at the call site.
 
-Still deferred: Google OAuth, email (Resend), LLM insight narratives, blob storage, Sentry.
+Still deferred: Google OAuth, email (Resend), blob storage, Sentry.
+
+AI narratives are optional rather than deferred: set `AI_BASE_URL` + `AI_MODEL` to any OpenAI-compatible server (Ollama locally needs no key). Everything degrades to the deterministic insights when it's absent or failing.
 
 ## Gotchas
 

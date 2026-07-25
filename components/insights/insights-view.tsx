@@ -1,15 +1,93 @@
 "use client";
 
-import { KeyRound, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
+import { KeyRound, Sparkles, TrendingDown, TrendingUp, WifiOff } from "lucide-react";
 import { Card, CardTitle } from "@/components/ui/card";
 import { PageSkeleton } from "@/components/common/loading";
 import { ACCENT_BG } from "@/lib/accent";
 import { CATEGORY_META } from "@/lib/categories";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatRelativeTime } from "@/lib/format";
 import { buildInsights } from "@/lib/insights";
 import { categoryTotals, currentMonthKey } from "@/lib/selectors";
 import { cn } from "@/lib/utils";
-import { useCurrentUser, useExpenses } from "@/hooks/use-fintrack-data";
+import {
+  useCurrentUser,
+  useExpenses,
+  useInsightNarrative,
+} from "@/hooks/use-fintrack-data";
+
+/**
+ * The model-written summary. Purely additive — the numbers above it are
+ * computed locally and stay correct whether or not this renders.
+ */
+function NarrativeCard() {
+  const { data, isPending } = useInsightNarrative();
+
+  if (isPending) {
+    return (
+      <Card className="border-dashed">
+        <div className="flex items-center gap-3">
+          <Sparkles size={18} strokeWidth={2.3} className="animate-pulse" />
+          <p className="text-[13px] font-semibold text-ft-muted">Writing your summary…</p>
+        </div>
+      </Card>
+    );
+  }
+
+  if (data?.status === "not-configured") {
+    return (
+      <Card className="border-dashed">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg border-2 border-ft-ink bg-ft-line">
+            <KeyRound size={18} strokeWidth={2.3} />
+          </span>
+          <div>
+            <CardTitle>Written summary — not configured</CardTitle>
+            <p className="mt-1.5 text-[13px] leading-[1.5] font-medium text-ft-muted">
+              The figures above are computed locally and always available. Set{" "}
+              <code className="rounded bg-ft-line px-1">AI_BASE_URL</code> and{" "}
+              <code className="rounded bg-ft-line px-1">AI_MODEL</code> to have an open-weight
+              model turn them into a paragraph. Any OpenAI-compatible server works — Ollama runs
+              locally for free.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  if (data?.status === "unavailable" || !data?.narrative) {
+    return (
+      <Card className="border-dashed">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg border-2 border-ft-ink bg-ft-line">
+            <WifiOff size={18} strokeWidth={2.3} />
+          </span>
+          <div>
+            <CardTitle>Summary unavailable</CardTitle>
+            <p className="mt-1.5 text-[13px] leading-[1.5] font-medium text-ft-muted">
+              The model server didn&apos;t respond, or its answer failed verification. Your
+              figures above are unaffected.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border-[2.5px] border-ft-ink bg-white p-5 shadow-neo">
+      <div className="mb-2.5 flex items-center gap-2">
+        <Sparkles size={18} strokeWidth={2.4} />
+        <span className="text-[13px] font-bold tracking-[0.5px] uppercase">Your month</span>
+      </div>
+      <p className="text-[14.5px] leading-[1.6] font-medium">{data.narrative.text}</p>
+      <p className="mt-3 border-t-2 border-ft-line pt-2.5 text-[11.5px] font-semibold text-ft-muted">
+        Written by {data.narrative.model} · {formatRelativeTime(data.narrative.generatedAt)} ·
+        figures computed locally
+      </p>
+    </div>
+  );
+}
 
 export function InsightsView() {
   const { data: currentUser } = useCurrentUser();
@@ -51,22 +129,7 @@ export function InsightsView() {
             );
           })}
 
-          <Card className="border-dashed">
-            <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg border-2 border-ft-ink bg-ft-line">
-                <KeyRound size={18} strokeWidth={2.3} />
-              </span>
-              <div>
-                <CardTitle>LLM-written narratives — not enabled yet</CardTitle>
-                <p className="mt-1.5 text-[13px] leading-[1.5] font-medium text-ft-muted">
-                  The insights above are computed locally from your expense history. The
-                  conversational summaries, budget suggestions, and anomaly explanations described
-                  in the roadmap need a model API key, so that layer is deferred until credentials
-                  are configured.
-                </p>
-              </div>
-            </div>
-          </Card>
+          <NarrativeCard />
         </div>
 
         <div className="flex flex-col gap-4.5">

@@ -79,6 +79,15 @@ export interface ActivityDoc {
   createdAt: string;
 }
 
+/** One cached narrative per user — `_id` is the user id. */
+export interface NarrativeDoc {
+  _id: string;
+  text: string;
+  model: string;
+  generatedAt: string;
+  inputHash: string;
+}
+
 export async function collections() {
   const db = await getDb();
   return {
@@ -88,6 +97,7 @@ export async function collections() {
     settlements: db.collection<SettlementDoc>("settlements"),
     notifications: db.collection<NotificationDoc>("notifications"),
     activity: db.collection<ActivityDoc>("activity"),
+    narratives: db.collection<NarrativeDoc>("narratives"),
   };
 }
 

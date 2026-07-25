@@ -47,9 +47,16 @@ Every screen from the original prototype is ported and functional. The data laye
 
 - Google OAuth (`GOOGLE_CLIENT_*`) — email + password works without it
 - Transactional email (`RESEND_API_KEY`) — invites and password resets
-- LLM-written insight narratives (`ANTHROPIC_API_KEY`)
 - Blob storage (`BLOB_READ_WRITE_TOKEN`) — receipt attachments, exports
 - Sentry / PostHog
+
+---
+
+## Currency
+
+**FinTrack is single-currency: every amount is INR**, formatted with the `en-IN` locale so grouping follows the lakh/crore convention (₹12,34,567.89).
+
+There is deliberately no per-user currency setting. In a shared-expense app the currency belongs to the money, not to the viewer — a display-only preference would let two members of the same group read one debt as ₹500 and $500, with no conversion between them. Real multi-currency support means a currency per group (or per expense) plus FX rates: a data-model change, not a formatting one.
 
 Each flag in `lib/env.ts` gates exactly one feature, so they can be enabled independently.
 
@@ -220,22 +227,50 @@ Auth.js email + password with bcrypt. Real sessions, edge route guard in `proxy.
 
 Vercel Cron to materialise recurring expenses on their `nextRunAt`. Invite emails, reminder digests, notification preferences.
 
-### Phase 8 — AI insights 🔒 needs `ANTHROPIC_API_KEY`
+### Phase 8 — AI insights ✅
 
-A narrative layer on top of the deterministic insights already in `lib/insights.ts`. The computed numbers stay the source of truth; the model writes the explanation. Store generated insights with provenance so users can see what produced them.
+A narrative layer over the deterministic insights in `lib/insights.ts`. See [AI insights](#ai-insights) below.
 
 ### Phase 9 — Hardening and deploy 🟡 in progress
 
-Tests are in ([see below](#tests)). Still outstanding: rate limiting on `/api/signup` and sign-in, request-level tests for `lib/server/route-helpers.ts`, Sentry, and Vercel preview/production environments.
+Tests are in ([see below](#tests)), and `/api/signup` and the sign-in callback are rate-limited (`lib/server/rate-limit.ts` — fixed-window, in-process; move the counters to Redis or Vercel KV before running more than one instance). Still outstanding: Sentry, and Vercel preview/production environments.
 
 For production Atlas, create a **separate database user scoped to the `fintrack` database only**, rather than reusing the read/write-any-database user from local setup, and replace the IP allowlist with Vercel's egress addresses or a peering connection.
 
 ---
 
+## AI insights
+
+Optional. The insights page works without it — the figures are computed locally in [lib/insights.ts](lib/insights.ts) and are always correct. A model, when configured, only writes a paragraph over those numbers.
+
+**The model never does arithmetic.** It receives the already-computed figures as text and is instructed to restate them. Anything it returns containing a number that wasn't supplied is discarded rather than shown ([`containsUnsupportedNumbers`](lib/ai/narrate.ts)) — in a money app a plausible-looking wrong figure is worse than no narrative. That split is what makes it safe to point a small open-weight model at financial data.
+
+Any **OpenAI-compatible `/chat/completions`** endpoint works, which is the de facto standard for serving open-weight models:
+
+| Provider | `AI_BASE_URL` | Notes |
+|---|---|---|
+| **Ollama** | `http://localhost:11434/v1` | Local, free, no key, fully offline. Best for development. |
+| **Groq** | `https://api.groq.com/openai/v1` | Free tier, very fast. Needs a free key. |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | Free tier via `:free` model suffixes. Needs a free key. |
+
+```bash
+AI_BASE_URL=http://localhost:11434/v1
+AI_MODEL=llama3.2
+AI_API_KEY=            # omit entirely for Ollama
+```
+
+Deliberately not a vendor SDK — the surface used is one POST with a JSON body, and an SDK would tie the app to a provider we want to keep swappable.
+
+**Caching and regeneration.** Narratives are stored per user in the `narratives` collection alongside the hash of the facts they were written from. A request regenerates only when that hash no longer matches the current insights, so repeat views are free and a narrative is never stale.
+
+Generation runs on read rather than inside the expense write: awaiting a model call would add seconds to every "add expense", and fire-and-forget work after a serverless response isn't guaranteed to execute. The trade-off is that the first insights view after a change pays the model latency once.
+
+**Every failure degrades to the deterministic insights** — not configured, server unreachable, HTTP error, timeout, empty completion, or an answer that failed the number check. The endpoint always returns 200 with a `status` the UI explains, rather than hiding the gap.
+
 ## Tests
 
 ```bash
-npm test              # 196 tests, ~2s
+npm test              # 250 tests, ~2s
 npm run test:watch
 npm run test:coverage
 ```
@@ -248,14 +283,17 @@ No database or dev server required — the MongoDB suite starts a real `mongod` 
 | `selectors.test.ts` | headline totals, per-group net, monthly spend, activity grouping |
 | `validation.test.ts` | every Zod schema, plus the schema↔split invariant |
 | `store-contract.ts` | the `DataStore` behavioural contract — **run against both stores** |
-| `insights.test.ts`, `format.test.ts` | insight generation, money and date formatting |
+| `insights.test.ts`, `format.test.ts` | insight generation, rupee and date formatting |
+| `narrate.test.ts` | the hallucinated-number guard and cache-invalidation hash |
+| `route-helpers.test.ts` | request-level auth and error→status mapping |
+| `rate-limit.test.ts` | window behaviour, per-key isolation, client IP extraction |
 | `db-client.test.ts` | one-connection-pool-per-process |
 
 **The contract suite is the important one.** `memory-store` and `mongo-store` are separate code but only one runs in production, so an authorization rule can silently exist in one and not the other. Both are held to the same 45 assertions. New `DataStore` methods belong there, not in a per-implementation file.
 
 Each rule was verified by breaking it deliberately and confirming the suite fails — a test that passes against both the correct and the broken implementation protects nothing.
 
-Not yet covered: `route-helpers.ts` (needs a request-level harness) and the React components.
+Not yet covered: the React components.
 
 ## Legacy prototype
 

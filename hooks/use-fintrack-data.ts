@@ -11,6 +11,7 @@ export const queryKeys = {
   settlements: ["settlements"] as const,
   notifications: ["notifications"] as const,
   activity: ["activity"] as const,
+  narrative: ["insight-narrative"] as const,
 };
 
 export function useCurrentUser() {
@@ -41,6 +42,18 @@ export function useActivity() {
   return useQuery({ queryKey: queryKeys.activity, queryFn: api.getActivity });
 }
 
+export function useInsightNarrative() {
+  return useQuery({
+    queryKey: queryKeys.narrative,
+    queryFn: api.getInsightNarrative,
+    // Generation can take a couple of seconds on a small model; don't re-run
+    // it just because the window regained focus.
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
 export function useCreateExpense() {
   const client = useQueryClient();
   return useMutation({
@@ -48,6 +61,8 @@ export function useCreateExpense() {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: queryKeys.expenses });
       client.invalidateQueries({ queryKey: queryKeys.activity });
+      // Spending changed, so the cached narrative's facts are stale.
+      client.invalidateQueries({ queryKey: queryKeys.narrative });
     },
   });
 }

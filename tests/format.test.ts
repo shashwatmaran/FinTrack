@@ -12,34 +12,32 @@ afterEach(() => {
 });
 
 describe("formatCurrency", () => {
-  it("formats a plain amount with two decimals", () => {
-    expect(formatCurrency(62.4)).toBe("$62.40");
-    expect(formatCurrency(0)).toBe("$0.00");
+  it("formats a plain amount in rupees with two decimals", () => {
+    expect(formatCurrency(1240)).toBe("₹1,240.00");
+    expect(formatCurrency(0)).toBe("₹0.00");
   });
 
   it("puts the minus sign before the currency symbol", () => {
-    expect(formatCurrency(-25.5)).toBe("-$25.50");
+    expect(formatCurrency(-2550)).toBe("-₹2,550.00");
   });
 
   it("does not render -0 as negative", () => {
-    expect(formatCurrency(-0)).toBe("$0.00");
+    expect(formatCurrency(-0)).toBe("₹0.00");
   });
 
-  it("groups thousands", () => {
-    expect(formatCurrency(1234567.89)).toBe("$1,234,567.89");
+  it("groups by the Indian lakh/crore convention, not by thousands", () => {
+    // en-US would render this as ₹1,234,567.89 — wrong for INR.
+    expect(formatCurrency(1234567.89)).toBe("₹12,34,567.89");
+    expect(formatCurrency(100000)).toBe("₹1,00,000.00");
   });
 
-  it("always shows cents, even for whole amounts", () => {
-    expect(formatCurrency(40)).toBe("$40.00");
+  it("always shows paise, even for whole amounts", () => {
+    expect(formatCurrency(40)).toBe("₹40.00");
   });
 
-  it("honours a different currency", () => {
-    expect(formatCurrency(10, "EUR")).toBe("€10.00");
-  });
-
-  it("rounds to the nearest cent rather than truncating", () => {
-    expect(formatCurrency(0.005)).toBe("$0.01");
-    expect(formatCurrency(0.004)).toBe("$0.00");
+  it("rounds to the nearest paisa rather than truncating", () => {
+    expect(formatCurrency(0.005)).toBe("₹0.01");
+    expect(formatCurrency(0.004)).toBe("₹0.00");
   });
 });
 

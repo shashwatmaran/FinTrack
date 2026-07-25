@@ -22,6 +22,7 @@ import {
   type CreateGroupInput,
   type CreateSettlementInput,
   type DataStore,
+  type StoredNarrative,
 } from "./store-types";
 
 /**
@@ -36,6 +37,7 @@ interface MemoryState {
   settlements: Settlement[];
   notifications: (NotificationItem & { userId: string })[];
   activity: ActivityItem[];
+  narratives: Map<string, StoredNarrative>;
 }
 
 declare global {
@@ -53,6 +55,7 @@ function seed(): MemoryState {
     settlements: SETTLEMENTS.map((s) => ({ ...s })),
     notifications: NOTIFICATIONS.map((n) => ({ ...n, userId: DEMO_USER_ID })),
     activity: ACTIVITY.map((a) => ({ ...a })),
+    narratives: new Map(),
   };
 }
 
@@ -294,5 +297,14 @@ export const memoryStore: DataStore = {
       .filter((a) => groupIds.has(a.groupId))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((a) => ({ ...a }));
+  },
+
+  async getNarrative(actorId) {
+    const stored = state().narratives.get(actorId);
+    return stored ? { ...stored } : null;
+  },
+
+  async saveNarrative(actorId, narrative) {
+    state().narratives.set(actorId, { ...narrative });
   },
 };

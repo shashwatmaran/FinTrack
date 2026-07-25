@@ -19,7 +19,7 @@ import {
 } from "@/hooks/use-fintrack-data";
 import { useUiStore } from "@/stores/ui-store";
 
-const METHODS = ["Cash", "Venmo", "Bank transfer", "Other"];
+const METHODS = ["UPI", "Cash", "Bank transfer", "Card", "Other"];
 
 const schema = z.object({
   toUserId: z.string().min(1, "Pick who you paid"),

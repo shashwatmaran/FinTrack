@@ -70,7 +70,7 @@ export function CreateGroupModal({ onClose }: { onClose: () => void }) {
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
         <div>
           <Label htmlFor="name">Group name</Label>
-          <Input id="name" placeholder="Portugal Trip" {...register("name")} />
+          <Input id="name" placeholder="Goa Trip" {...register("name")} />
           <FieldError>{errors.name?.message}</FieldError>
         </div>
 

@@ -344,4 +344,23 @@ export const mongoStore: DataStore = {
       .toArray();
     return docs.map(toActivity);
   },
+
+  async getNarrative(actorId) {
+    const { narratives } = await db();
+    const doc = await narratives.findOne({ _id: actorId });
+    if (!doc) return null;
+    return {
+      text: doc.text,
+      model: doc.model,
+      generatedAt: doc.generatedAt,
+      inputHash: doc.inputHash,
+    };
+  },
+
+  async saveNarrative(actorId, narrative) {
+    const { narratives } = await db();
+    // Keyed on the user id, so regenerating replaces rather than accumulates.
+    // `replaceOne` takes the document without _id — it comes from the filter.
+    await narratives.replaceOne({ _id: actorId }, { ...narrative }, { upsert: true });
+  },
 };

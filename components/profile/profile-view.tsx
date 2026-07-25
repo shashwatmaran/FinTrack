@@ -5,20 +5,12 @@ import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
-import { Select } from "@/components/ui/input";
 import { Pill } from "@/components/ui/badge";
 import { PageSkeleton } from "@/components/common/loading";
 import { ACCENT_BG } from "@/lib/accent";
 import { cn } from "@/lib/utils";
 import { useCurrentUser, useExpenses, useGroups } from "@/hooks/use-fintrack-data";
 import { useUiStore } from "@/stores/ui-store";
-
-const CURRENCIES = [
-  { code: "USD", label: "USD · US Dollar" },
-  { code: "EUR", label: "EUR · Euro" },
-  { code: "GBP", label: "GBP · British Pound" },
-  { code: "INR", label: "INR · Indian Rupee" },
-];
 
 function Row({
   title,
@@ -73,7 +65,6 @@ export function ProfileView() {
 
   const [notifications, setNotifications] = useState(true);
   const [twoFactor, setTwoFactor] = useState(false);
-  const [currency, setCurrency] = useState("USD");
 
   if (!currentUser) return <PageSkeleton />;
 
@@ -123,19 +114,11 @@ export function ProfileView() {
             />
           </Row>
           <div className="h-[1.5px] bg-ft-line" />
-          <Row title="Currency" description="Used across all groups">
-            <Select
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              aria-label="Preferred currency"
-              className="w-auto py-2"
-            >
-              {CURRENCIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.label}
-                </option>
-              ))}
-            </Select>
+          <Row
+            title="Currency"
+            description="FinTrack is single-currency — every amount is in rupees"
+          >
+            <Pill className="bg-ft-line">₹ INR</Pill>
           </Row>
           <div className="h-[1.5px] bg-ft-line" />
           <Row title="Theme" description="Dark mode coming soon">

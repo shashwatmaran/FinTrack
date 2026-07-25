@@ -79,6 +79,12 @@ export const api = {
 
   getActivity: () => request<ActivityItem[]>("/activity"),
 
+  getInsightNarrative: () =>
+    request<{
+      narrative: { text: string; model: string; generatedAt: string } | null;
+      status: "ok" | "not-configured" | "unavailable";
+    }>("/insights/narrative"),
+
   signUp: (body: { name: string; email: string; password: string }) =>
     request<{ id: string; email: string }>("/signup", { method: "POST", body: json(body) }),
 };
