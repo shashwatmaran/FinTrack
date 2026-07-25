@@ -6,11 +6,15 @@ Read [README.md](README.md) first for architecture and roadmap. This file covers
 
 ```bash
 npm run dev       # http://localhost:3000
+npm test          # must pass before committing
 npm run build     # must pass before committing
 npm run lint      # must pass before committing
 npm run db:check  # verify MongoDB connection + document counts
 npm run seed      # load demo data into MongoDB (--reset to replace)
 ```
+
+Tests need no running database — `tests/mongo-store.test.ts` starts a real
+`mongod` in-process via `mongodb-memory-server`.
 
 `AUTH_SECRET` is required (in `.env.local`). `MONGODB_URI` is optional — without it the app uses the in-memory store. Demo login: `maya.alvarez@email.com` / `demo1234`.
 
@@ -25,6 +29,19 @@ npm run seed      # load demo data into MongoDB (--reset to replace)
 - **Accent colours are never interpolated into class names.** Tailwind can only see complete strings, so go through the maps in `lib/accent.ts`.
 - **Money is handled in integer cents when splitting.** See `equalSplit` — per-share rounding would let splits drift off the total.
 - **`/api/*` returns JSON, always.** `proxy.ts` 401s API calls rather than redirecting them; a redirect would hand `fetch` an HTML body.
+
+## Tests
+
+`tests/store-contract.ts` is a single behavioural suite executed against *both*
+store implementations. Anything added to the `DataStore` interface — especially
+an authorization rule — belongs there, not in an implementation's own test file.
+That shared suite is the only thing standing between the two stores and silent
+drift, since just one of them runs in production.
+
+When adding a rule, confirm the test actually catches its absence: break the
+rule deliberately, watch the contract fail, then restore it. A test that passes
+against both the correct and the broken implementation is not protecting
+anything.
 
 ## Design system
 

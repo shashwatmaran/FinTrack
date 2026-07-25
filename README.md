@@ -41,6 +41,7 @@ Every screen from the original prototype is ported and functional. The data laye
 | Authentication | Done — Auth.js email + password, hashed with bcrypt |
 | API layer | Done — route handlers with auth and per-group authorization |
 | MongoDB persistence | Done — enabled by setting `MONGODB_URI` |
+| Tests | 196 tests — domain math, selectors, schemas, and both stores |
 
 **Deliberately deferred** — everything below needs a credential, so it is stubbed behind a feature flag in [lib/env.ts](lib/env.ts) rather than half-built:
 
@@ -223,13 +224,38 @@ Vercel Cron to materialise recurring expenses on their `nextRunAt`. Invite email
 
 A narrative layer on top of the deterministic insights already in `lib/insights.ts`. The computed numbers stay the source of truth; the model writes the explanation. Store generated insights with provenance so users can see what produced them.
 
-### Phase 9 — Hardening and deploy
+### Phase 9 — Hardening and deploy 🟡 in progress
 
-Tests for the domain layer first — `balances.ts` is pure and is where a bug costs the most — then for the authorization rules in the stores. After that: rate limiting on `/api/signup` and sign-in, Sentry, and Vercel preview/production environments.
+Tests are in ([see below](#tests)). Still outstanding: rate limiting on `/api/signup` and sign-in, request-level tests for `lib/server/route-helpers.ts`, Sentry, and Vercel preview/production environments.
 
 For production Atlas, create a **separate database user scoped to the `fintrack` database only**, rather than reusing the read/write-any-database user from local setup, and replace the IP allowlist with Vercel's egress addresses or a peering connection.
 
 ---
+
+## Tests
+
+```bash
+npm test              # 196 tests, ~2s
+npm run test:watch
+npm run test:coverage
+```
+
+No database or dev server required — the MongoDB suite starts a real `mongod` in-process via `mongodb-memory-server`.
+
+| Suite | Covers |
+|---|---|
+| `balances.test.ts` | split math, net balances, debt flows, simplification |
+| `selectors.test.ts` | headline totals, per-group net, monthly spend, activity grouping |
+| `validation.test.ts` | every Zod schema, plus the schema↔split invariant |
+| `store-contract.ts` | the `DataStore` behavioural contract — **run against both stores** |
+| `insights.test.ts`, `format.test.ts` | insight generation, money and date formatting |
+| `db-client.test.ts` | one-connection-pool-per-process |
+
+**The contract suite is the important one.** `memory-store` and `mongo-store` are separate code but only one runs in production, so an authorization rule can silently exist in one and not the other. Both are held to the same 45 assertions. New `DataStore` methods belong there, not in a per-implementation file.
+
+Each rule was verified by breaking it deliberately and confirming the suite fails — a test that passes against both the correct and the broken implementation protects nothing.
+
+Not yet covered: `route-helpers.ts` (needs a request-level harness) and the React components.
 
 ## Legacy prototype
 

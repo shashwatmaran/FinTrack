@@ -66,6 +66,14 @@ export interface HeadlineTotals {
   owesPeople: number;
 }
 
+/**
+ * Rounds to cents. The trailing `|| 0` collapses -0 to 0: negating an empty
+ * sum produces -0, which survives JSON and makes equality checks surprising.
+ */
+function round2(value: number): number {
+  return Math.round(value * 100) / 100 || 0;
+}
+
 export function headlineTotals(
   currentUserId: string,
   expenses: Expense[],
@@ -83,9 +91,9 @@ export function headlineTotals(
   const owesList = balances.filter((b) => b.amount < 0);
 
   return {
-    spentThisMonth: Math.round(spentThisMonth * 100) / 100,
-    owed: Math.round(owedList.reduce((s, b) => s + b.amount, 0) * 100) / 100,
-    owes: Math.round(-owesList.reduce((s, b) => s + b.amount, 0) * 100) / 100,
+    spentThisMonth: round2(spentThisMonth),
+    owed: round2(owedList.reduce((s, b) => s + b.amount, 0)),
+    owes: round2(-owesList.reduce((s, b) => s + b.amount, 0)),
     owedPeople: owedList.length,
     owesPeople: owesList.length,
   };

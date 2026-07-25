@@ -4,13 +4,21 @@ import { MongoClient, type Db } from "mongodb";
 import { env } from "@/lib/env";
 
 /**
- * A single MongoClient is reused across the process. In development Next.js
- * hot-reloads modules, so the promise is cached on globalThis to avoid opening
- * a new connection pool on every edit.
+ * Exactly one MongoClient (and therefore one connection pool) per process.
+ *
+ * The module-level cache is what enforces that. The extra globalThis cache is
+ * only for development, where Next.js hot-reload re-evaluates the module and
+ * would otherwise leak a pool per edit.
+ *
+ * Caching in production is not optional: every store method resolves
+ * `collections()`, so connecting per call would open dozens of pools per page
+ * load and exhaust the cluster's connection limit.
  */
 declare global {
   var __fintrackMongo: Promise<MongoClient> | undefined;
 }
+
+let cached: Promise<MongoClient> | undefined;
 
 function connect(uri: string): Promise<MongoClient> {
   return new MongoClient(uri, {
@@ -34,10 +42,19 @@ export function getMongoClient(): Promise<MongoClient> {
     return globalThis.__fintrackMongo;
   }
 
-  return connect(uri);
+  cached ??= connect(uri);
+  return cached;
 }
 
 export async function getDb(): Promise<Db> {
   const client = await getMongoClient();
   return client.db(env.MONGODB_DB ?? "fintrack");
+}
+
+/** Test-only: drops the cached connection so a suite can point at a new server. */
+export async function __resetMongoClientForTests(): Promise<void> {
+  const open = cached ?? globalThis.__fintrackMongo;
+  cached = undefined;
+  globalThis.__fintrackMongo = undefined;
+  if (open) await (await open).close().catch(() => {});
 }

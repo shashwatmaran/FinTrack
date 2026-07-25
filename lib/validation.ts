@@ -31,8 +31,16 @@ const money = z
   .number()
   .positive("Enter an amount above 0")
   .max(1_000_000, "That amount looks too large")
-  // Guard against floating-point cents sneaking into the ledger.
-  .refine((v) => Math.round(v * 100) === Number((v * 100).toFixed(0)), "At most 2 decimal places");
+  /**
+   * Reject sub-cent precision. This matters beyond tidiness: `equalSplit`
+   * works in whole cents, so an amount like 10.123 would be stored alongside
+   * splits that sum to 10.12 — breaking the invariant that splits reconstruct
+   * the total.
+   *
+   * The epsilon is required because `10.99 * 100` is 1099.0000000000002 in
+   * binary floating point; an exact integer comparison would reject valid money.
+   */
+  .refine((v) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-9, "At most 2 decimal places");
 
 export const createExpenseSchema = z.object({
   groupId: z.string().min(1, "Pick a group"),

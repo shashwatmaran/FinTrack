@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated coverage report.
+    "coverage/**",
     // Frozen reference copy of the pre-Next.js prototype — kept for design
     // parity while porting screens, deliberately not held to app lint rules.
     "legacy-prototype/**",
