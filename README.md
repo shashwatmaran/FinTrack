@@ -237,7 +237,13 @@ A narrative layer over the deterministic insights in `lib/insights.ts`. See [AI 
 
 ### Phase 9 — Hardening and deploy 🟡 in progress
 
-Tests are in ([see below](#tests)), and `/api/signup` and the sign-in callback are rate-limited (`lib/server/rate-limit.ts` — fixed-window, in-process; move the counters to Redis or Vercel KV before running more than one instance). Still outstanding: Sentry, and Vercel preview/production environments.
+Done: tests ([see below](#tests)); rate limiting on `/api/signup` and the sign-in callback (`lib/server/rate-limit.ts` — fixed-window, in-process; move the counters to Redis or Vercel KV before running more than one instance); error boundaries; security headers.
+
+**Error boundaries.** `app/error.tsx` catches anything below the root layout, `app/(app)/error.tsx` catches it inside the shell so the navigation survives, `app/global-error.tsx` catches the root layout itself, and `app/not-found.tsx` handles 404s. None of them print the error message in production — they show `error.digest`, which is what correlates a user report with the server logs.
+
+**Security headers.** Set in `next.config.ts`: a CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, and HSTS in production only. `/api/*` additionally gets `no-store`, since those responses are per-session and must never reach a shared cache. `X-Powered-By` is off.
+
+Still outstanding: Sentry, and Vercel preview/production environments.
 
 For production Atlas, create a **separate database user scoped to the `fintrack` database only**, rather than reusing the read/write-any-database user from local setup, and replace the IP allowlist with Vercel's egress addresses or a peering connection.
 

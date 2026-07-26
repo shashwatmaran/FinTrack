@@ -32,6 +32,20 @@ Tests need no running database — `tests/mongo-store.test.ts` starts a real
 - **The model never does arithmetic.** Figures are computed in `lib/insights.ts` and passed to the model as text. `lib/ai/narrate.ts` discards any completion containing a number that wasn't supplied — a plausible wrong figure is worse than no narrative.
 - **`/api/*` returns JSON, always.** `proxy.ts` 401s API calls rather than redirecting them; a redirect would hand `fetch` an HTML body.
 - **`materializeRecurring` is the one store method with no acting user.** It is the scheduled job and writes across every group, so it must stay reachable only from `/api/cron/*` — never from a user-facing route. Adding a new cron path means adding it to the `proxy.ts` matcher exclusion too, or the proxy will 401 it before the handler runs.
+- **Error boundaries never print `error.message` in production.** Next replaces
+  server error messages with a generic string, but a client-side throw keeps its
+  real one — and in an app holding balances and settlements that is the wrong
+  thing to paint on screen. Show `error.digest` instead; it is the hash Next logs
+  next to the real stack, so it is what correlates a user report with the server
+  logs. `app/global-error.tsx` additionally imports nothing from the design
+  system: it catches root-layout failures, so anything it depended on could be
+  the very thing that failed. A boundary that can throw is not a boundary.
+- **Security headers live in `next.config.ts`, not in `proxy.ts`.** Keeping them
+  in one `headers()` block means they apply to every response including static
+  assets, which a proxy matcher exclusion would silently skip. The CSP keeps
+  `script-src 'unsafe-inline'` because Next injects inline bootstrap scripts;
+  removing it means per-request nonces in `proxy.ts` and opts every route out of
+  static rendering. Worth doing if the app ever renders user-supplied HTML.
 - **Recurring scheduling maths lives in `lib/recurring.ts` and stays pure.** Month-end clamping and catch-up are where the bugs are; keeping it free of dates-from-`Date.now()` and database access is what makes them testable.
 
 ## Tests
@@ -63,6 +77,15 @@ AI narratives are optional rather than deferred: set `AI_BASE_URL` + `AI_MODEL` 
 
 - Empty strings in `.env` files are not "absent" — `lib/env.ts` preprocesses `""` to `undefined` so a blank placeholder reads as unconfigured.
 - `MONGODB_URI` is not validated with `z.string().url()`; `mongodb+srv://` isn't a URL the WHATWG parser accepts. The scheme is checked instead.
+- **`mongodb+srv://` can fail on a machine where everything else resolves.** The
+  driver does the SRV and TXT lookups through Node's c-ares resolver, which keeps
+  its own nameserver list; `dns.lookup()` uses the OS resolver, so browsers,
+  `nslookup`, and the rest of the app stay fine while only Atlas breaks. If
+  `require("dns").getServers()` is `['127.0.0.1']` with nothing on port 53,
+  c-ares found no nameserver and fell back. Don't paper over it with
+  `dns.setServers()` in app code — that hard-codes one machine's workaround into
+  production. Use the direct seed-list connection string instead (see
+  `.env.example`), and note it doesn't survive Atlas topology changes.
 - Route guarding lives in `proxy.ts` (Next 16's rename of `middleware.ts`), not in the client shell.
 
 ## Legacy prototype
