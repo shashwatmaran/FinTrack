@@ -235,17 +235,58 @@ Vercel Cron to materialise recurring expenses on their `nextRunAt`. Invite email
 
 A narrative layer over the deterministic insights in `lib/insights.ts`. See [AI insights](#ai-insights) below.
 
-### Phase 9 — Hardening and deploy 🟡 in progress
+### Phase 9 — Hardening and deploy ✅ (observability still deferred)
 
-Done: tests ([see below](#tests)); rate limiting on `/api/signup` and the sign-in callback (`lib/server/rate-limit.ts` — fixed-window, in-process; move the counters to Redis or Vercel KV before running more than one instance); error boundaries; security headers.
+Deployed and verified on Vercel against Atlas. See [Deployment](#deployment) below.
+
+Done: tests ([see below](#tests)); rate limiting on `/api/signup` and the sign-in callback (`lib/server/rate-limit.ts` — fixed-window, in-process; move the counters to Redis or Vercel KV before running more than one instance); error boundaries; security headers; `/api/health`.
 
 **Error boundaries.** `app/error.tsx` catches anything below the root layout, `app/(app)/error.tsx` catches it inside the shell so the navigation survives, `app/global-error.tsx` catches the root layout itself, and `app/not-found.tsx` handles 404s. None of them print the error message in production — they show `error.digest`, which is what correlates a user report with the server logs.
 
 **Security headers.** Set in `next.config.ts`: a CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, and HSTS in production only. `/api/*` additionally gets `no-store`, since those responses are per-session and must never reach a shared cache. `X-Powered-By` is off.
 
-Still outstanding: Sentry, and Vercel preview/production environments.
+Still outstanding: Sentry (needs `SENTRY_DSN`), and moving the rate-limit counters off per-process memory.
 
-For production Atlas, create a **separate database user scoped to the `fintrack` database only**, rather than reusing the read/write-any-database user from local setup, and replace the IP allowlist with Vercel's egress addresses or a peering connection.
+---
+
+## Deployment
+
+Live on Vercel, backed by MongoDB Atlas.
+
+### Environment variables
+
+Set in Project Settings → Environment Variables, for **both** Production and Preview — a variable scoped to one environment is simply absent in the other, and the dashboard list looks identical either way:
+
+| Variable | Notes |
+| --- | --- |
+| `AUTH_SECRET` | Required. Sessions can't be signed without it. |
+| `MONGODB_URI` | The `mongodb+srv://` string. |
+| `MONGODB_DB` | `fintrack` |
+| `CRON_SECRET` | Bearer token for `/api/cron/*`; the schedule is in `vercel.json`. |
+
+Do **not** set `AUTH_URL`. Auth.js auto-detects the deployment host on Vercel; a stale value wins over detection and sends authenticated users to whatever it names.
+
+Env var changes only apply to **new** deployments — edit them, then redeploy.
+
+### Atlas
+
+Vercel Hobby functions have dynamic egress IPs, so Network Access has to be `0.0.0.0/0`; there is no narrower range to pin. That removes the network barrier but not authentication — the cluster still requires SCRAM over TLS. Since the password becomes the only remaining layer, use a **database user scoped to the `fintrack` database only**, not the read/write-any-database user from local setup. Tightening the network again means a Vercel dedicated egress IP (Pro) or an Atlas Private Endpoint (M10+).
+
+### `/api/health`
+
+```
+GET /api/health
+{"status":"ok","database":"connected","authSecret":true,
+ "authUrlIsLocalhost":false,"aiNarratives":false,"scheduledJobs":true}
+```
+
+Unauthenticated by necessity — it has to answer when auth is the broken thing — so it reports status words and booleans only: never a connection string, hostname, error message, or secret value. `database` distinguishes the three failures that otherwise look identical from a browser: `in-memory` (no `MONGODB_URI`, app silently works but data resets), `unreachable` (set but blocked), `connected`.
+
+### Two traps that cost an afternoon
+
+**Deployment Protection.** Vercel gates preview *and* production deployments behind its own SSO by default. Requests get a `302` to `vercel.com/sso-api` before reaching the app. A browser already signed in to Vercel loads the page normally, so the app looks fine — but its `fetch` calls follow that redirect and get HTML instead of JSON, and sign-in fails with no useful error. Settings → Deployment Protection → *Only Preview Deployments*. Diagnose it with `curl -I`: a `Location:` header pointing at `vercel.com` means the app never ran.
+
+**A failing build keeps serving the last good one.** Fixes appear not to work because they were never deployed. Check the top entry in Deployments is green and matches the commit you expect.
 
 ---
 
@@ -309,7 +350,7 @@ Generation runs on read rather than inside the expense write: awaiting a model c
 ## Tests
 
 ```bash
-npm test              # 320 tests, ~4s
+npm test              # 369 tests, ~9s
 npm run test:watch
 npm run test:coverage
 ```
@@ -328,13 +369,20 @@ No database or dev server required — the MongoDB suite starts a real `mongod` 
 | `route-helpers.test.ts` | request-level auth and error→status mapping |
 | `cron-route.test.ts` | cron auth gate and job-result mapping |
 | `rate-limit.test.ts` | window behaviour, per-key isolation, client IP extraction |
+| `auth-route.test.ts` | sign-in throttling, and the 429 body shape the Auth.js client can parse |
+| `auth-errors.test.ts` | bad credentials vs. infrastructure failure, and what neither may reveal |
+| `health-route.test.ts` | status reporting, and that no secret or connection string escapes |
 | `db-client.test.ts` | one-connection-pool-per-process |
+| `sign-in-form.test.tsx` | that a failed submit **always** produces visible feedback |
+| `dashboard-view.test.tsx` | empty-vs-loading, onboarding, rupee formatting |
 
 **The contract suite is the important one.** `memory-store` and `mongo-store` are separate code but only one runs in production, so an authorization rule can silently exist in one and not the other. Both are held to the same 45 assertions. New `DataStore` methods belong there, not in a per-implementation file.
 
 Each rule was verified by breaking it deliberately and confirming the suite fails — a test that passes against both the correct and the broken implementation protects nothing.
 
-Not yet covered: the React components.
+**Component tests** (`*.test.tsx`) run under jsdom via a `@vitest-environment jsdom` docblock, so only the files that need a DOM pay for one. They exist because the two worst bugs this project has had were both invisible to everything above: a resolved-but-empty query rendering as a permanent skeleton, and a sign-in form that failed *silently* when Auth.js threw. In both cases the server was returning exactly the right thing. Both were re-broken deliberately to confirm the new tests fail.
+
+Not yet covered: the modals and the group detail view.
 
 ## Legacy prototype
 

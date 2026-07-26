@@ -3,8 +3,15 @@ import path from "node:path";
 
 export default defineConfig({
   test: {
+    /**
+     * Node by default — the store contract talks to a real mongod and the
+     * route tests exercise server code. Component tests opt into jsdom with a
+     * `@vitest-environment jsdom` docblock, so the DOM is only paid for by the
+     * files that need it.
+     */
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
+    setupFiles: ["tests/setup-dom.ts"],
     // The MongoDB contract suite starts a real mongod on first run, which
     // includes a one-time binary download.
     hookTimeout: 180_000,

@@ -32,6 +32,19 @@ Tests need no running database — `tests/mongo-store.test.ts` starts a real
 - **The model never does arithmetic.** Figures are computed in `lib/insights.ts` and passed to the model as text. `lib/ai/narrate.ts` discards any completion containing a number that wasn't supplied — a plausible wrong figure is worse than no narrative.
 - **`/api/*` returns JSON, always.** `proxy.ts` 401s API calls rather than redirecting them; a redirect would hand `fetch` an HTML body.
 - **`materializeRecurring` is the one store method with no acting user.** It is the scheduled job and writes across every group, so it must stay reachable only from `/api/cron/*` — never from a user-facing route. Adding a new cron path means adding it to the `proxy.ts` matcher exclusion too, or the proxy will 401 it before the handler runs.
+- **`/api/health` reports status words, never values.** It is unauthenticated
+  because it has to answer when auth is the thing that is broken, which means
+  anything it returns is public. A driver error routinely contains the whole
+  connection string including credentials, so nothing derived from an exception
+  — and no env var value — may reach the response body. Booleans and a fixed
+  vocabulary only. Like the cron routes, it needs its path in the `proxy.ts`
+  matcher exclusion or the proxy 401s it before the handler runs.
+- **Auth failures are classified, not collapsed.** Auth.js returns
+  `CredentialsSignin` when `authorize` returns null and `Configuration` when it
+  *threw* — an unreachable database takes the second path. `lib/auth-errors.ts`
+  maps only the first to a credentials message; everything else says the fault
+  is ours. Collapsing them tells users to re-check a password that was never
+  wrong and hides an outage from the one person likely to report it.
 - **Error boundaries never print `error.message` in production.** Next replaces
   server error messages with a generic string, but a client-side throw keeps its
   real one — and in an app holding balances and settlements that is the wrong
@@ -60,6 +73,15 @@ When adding a rule, confirm the test actually catches its absence: break the
 rule deliberately, watch the contract fail, then restore it. A test that passes
 against both the correct and the broken implementation is not protecting
 anything.
+
+Component tests are `tests/*.test.tsx` and opt into jsdom with a
+`// @vitest-environment jsdom` docblock on the first line — the default stays
+`node` because the store contract runs a real `mongod`. They cover what the
+server-side suites structurally cannot: this project's two worst bugs were a
+resolved-but-empty query rendering as a permanent skeleton, and a sign-in form
+that went silent when `signIn()` threw. Both had a correct API response behind
+them. When a component test asserts an *absence* — no skeleton, no error text —
+re-break the component and watch it fail, or it is asserting nothing.
 
 ## Design system
 
