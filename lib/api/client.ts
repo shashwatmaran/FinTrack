@@ -1,6 +1,7 @@
 import type {
   ActivityItem,
   AppUser,
+  BootstrapData,
   Expense,
   Group,
   NotificationItem,
@@ -49,6 +50,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const json = (body: unknown) => JSON.stringify(body);
 
 export const api = {
+  /**
+   * Everything the shell needs, in one round trip. See
+   * `lib/server/bootstrap.ts` — on serverless, five parallel requests meant
+   * five cold starts and five database connections for one page.
+   */
+  getBootstrap: () => request<BootstrapData>("/bootstrap"),
+
   getCurrentUser: () => request<AppUser>("/me"),
   getUsers: () => request<AppUser[]>("/users"),
 

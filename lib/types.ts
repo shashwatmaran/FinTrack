@@ -84,6 +84,22 @@ export interface NotificationItem {
   createdAt: string;
 }
 
+/**
+ * Everything the signed-in shell needs, in one payload.
+ *
+ * Lives here rather than beside its loader in `lib/server/` because the client
+ * needs the type too, and anything under `lib/server/` is `server-only` and
+ * fails the build when a component reaches for it.
+ */
+export interface BootstrapData {
+  me: AppUser;
+  users: AppUser[];
+  groups: Group[];
+  expenses: Expense[];
+  settlements: Settlement[];
+  notifications: NotificationItem[];
+}
+
 export interface ActivityItem {
   id: string;
   groupId: string;
