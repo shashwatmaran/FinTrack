@@ -39,14 +39,17 @@ export default auth((request) => {
 
 export const config = {
   /**
-   * Everything except Next internals and static assets, minus three API paths
+   * Everything except Next internals and static assets, minus four API paths
    * that are legitimately reachable without a session:
    *   api/auth   — the sign-in flow itself
    *   api/signup — account creation
    *   api/cron   — Vercel Cron, which presents a bearer secret, not a cookie;
    *                the route enforces that itself
+   *   api/health — deployment diagnostic. It has to answer when auth is the
+   *                broken thing, so requiring a session would make it useless
+   *                in precisely the case it exists for.
    */
   matcher: [
-    "/((?!api/auth|api/signup|api/cron|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api/auth|api/signup|api/cron|api/health|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
