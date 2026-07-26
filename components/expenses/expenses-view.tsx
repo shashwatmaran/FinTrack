@@ -9,6 +9,7 @@ import { PageSkeleton } from "@/components/common/loading";
 import { ACCENT_BG } from "@/lib/accent";
 import { CATEGORY_META } from "@/lib/categories";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { describeNextRun } from "@/lib/recurring";
 import { usersById } from "@/lib/selectors";
 import { cn } from "@/lib/utils";
 import {
@@ -23,6 +24,7 @@ import { useUiStore } from "@/stores/ui-store";
 export function ExpensesView() {
   const searchParams = useSearchParams();
   const search = searchParams.get("q")?.toLowerCase() ?? "";
+  const today = new Date().toISOString().slice(0, 10);
 
   const { data: currentUser } = useCurrentUser();
   const { data: users = [] } = useUsers();
@@ -101,6 +103,10 @@ export function ExpensesView() {
               const meta = CATEGORY_META[expense.category];
               const Icon = meta.icon;
               const active = expense.recurring!.active;
+              const nextRun = describeNextRun(expense.recurring!.nextRunAt, today);
+              // Overdue means the cron hasn't caught it yet — surface that
+              // rather than showing a date that has already passed.
+              const dueNow = nextRun === "due now";
               return (
                 <div
                   key={expense.id}
@@ -124,9 +130,23 @@ export function ExpensesView() {
                       {expense.recurring!.cadence}
                     </span>
                   </span>
-                  <span className="rounded-full border-2 border-ft-ink bg-ft-sky px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap">
-                    Next {formatDate(expense.recurring!.nextRunAt)}
-                  </span>
+                  {active ? (
+                    <span
+                      className={cn(
+                        "rounded-full border-2 border-ft-ink px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap",
+                        dueNow ? "bg-ft-yellow" : "bg-ft-sky"
+                      )}
+                      title={`Next run ${formatDate(expense.recurring!.nextRunAt)}`}
+                    >
+                      {dueNow
+                        ? "Due now"
+                        : `${formatDate(expense.recurring!.nextRunAt)} · ${nextRun}`}
+                    </span>
+                  ) : (
+                    <span className="rounded-full border-2 border-ft-ink bg-ft-line px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap">
+                      Paused
+                    </span>
+                  )}
                   <span className="w-20 text-right text-[15px] font-bold">
                     {formatCurrency(expense.amount)}
                   </span>

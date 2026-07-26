@@ -389,6 +389,169 @@ export function runStoreContract(harness: StoreHarness) {
       });
     });
 
+    describe("materializeRecurring", () => {
+      // Seed data has two active monthly rules in g3, both with 2026-08 next runs.
+      const AFTER_BOTH_DUE = "2026-08-20";
+      const BEFORE_ANY_DUE = "2026-07-26";
+
+      it("creates nothing when no rule is due", async () => {
+        const before = (await store.getExpenses(DEMO)).length;
+        const result = await store.materializeRecurring(BEFORE_ANY_DUE);
+
+        expect(result.created).toEqual([]);
+        expect((await store.getExpenses(DEMO)).length).toBe(before);
+      });
+
+      it("materialises rules that have come due", async () => {
+        const result = await store.materializeRecurring(AFTER_BOTH_DUE);
+        expect(result.created.length).toBeGreaterThan(0);
+      });
+
+      it("copies the template's amount, payer and splits", async () => {
+        const template = (await store.getExpenses(DEMO)).find((e) => e.recurring)!;
+        const result = await store.materializeRecurring(AFTER_BOTH_DUE);
+        const generated = result.created.find((e) => e.description === template.description)!;
+
+        expect(generated.amount).toBe(template.amount);
+        expect(generated.payerId).toBe(template.payerId);
+        expect(generated.splits).toEqual(template.splits);
+        expect(generated.groupId).toBe(template.groupId);
+      });
+
+      it("does not make generated expenses into templates themselves", async () => {
+        // Otherwise each run would multiply the number of active rules.
+        const result = await store.materializeRecurring(AFTER_BOTH_DUE);
+        expect(result.created.every((e) => !e.recurring)).toBe(true);
+      });
+
+      it("is idempotent — a second run the same day creates nothing", async () => {
+        const first = await store.materializeRecurring(AFTER_BOTH_DUE);
+        expect(first.created.length).toBeGreaterThan(0);
+
+        const second = await store.materializeRecurring(AFTER_BOTH_DUE);
+        expect(second.created).toEqual([]);
+      });
+
+      it("advances the rule past the day it ran", async () => {
+        await store.materializeRecurring(AFTER_BOTH_DUE);
+        const rules = (await store.getExpenses(DEMO)).filter((e) => e.recurring);
+
+        expect(rules.length).toBeGreaterThan(0);
+        expect(rules.every((e) => e.recurring!.nextRunAt > AFTER_BOTH_DUE)).toBe(true);
+      });
+
+      it("skips paused rules", async () => {
+        const template = (await store.getExpenses(DEMO)).find((e) => e.recurring)!;
+        await store.toggleRecurring(DEMO, template.id); // pause it
+
+        const result = await store.materializeRecurring(AFTER_BOTH_DUE);
+        expect(result.created.some((e) => e.description === template.description)).toBe(false);
+      });
+
+      it("leaves a paused rule's schedule untouched", async () => {
+        const template = (await store.getExpenses(DEMO)).find((e) => e.recurring)!;
+        const originalNextRun = template.recurring!.nextRunAt;
+        await store.toggleRecurring(DEMO, template.id);
+
+        await store.materializeRecurring(AFTER_BOTH_DUE);
+        const after = (await store.getExpenses(DEMO)).find((e) => e.id === template.id)!;
+        expect(after.recurring!.nextRunAt).toBe(originalNextRun);
+      });
+
+      it("catches up several missed occurrences in one run", async () => {
+        // Nothing ran for roughly four months.
+        const result = await store.materializeRecurring("2026-11-20");
+        const byTemplate = new Map<string, number>();
+        for (const e of result.created) {
+          byTemplate.set(e.description, (byTemplate.get(e.description) ?? 0) + 1);
+        }
+        expect([...byTemplate.values()].every((n) => n >= 3)).toBe(true);
+      });
+
+      it("notifies every participant of a generated expense", async () => {
+        const before = (await store.getNotifications(DEMO)).length;
+        await store.materializeRecurring(AFTER_BOTH_DUE);
+        expect((await store.getNotifications(DEMO)).length).toBeGreaterThan(before);
+      });
+
+      it("records activity for generated expenses", async () => {
+        const before = (await store.getActivity(DEMO)).length;
+        await store.materializeRecurring(AFTER_BOTH_DUE);
+        expect((await store.getActivity(DEMO)).length).toBeGreaterThan(before);
+      });
+
+      it("makes generated expenses visible through the normal read path", async () => {
+        const result = await store.materializeRecurring(AFTER_BOTH_DUE);
+        const ids = new Set((await store.getExpenses(DEMO)).map((e) => e.id));
+        expect(result.created.every((e) => ids.has(e.id))).toBe(true);
+      });
+    });
+
+    describe("event notifications", () => {
+      it("notifies the other participants when someone adds an expense", async () => {
+        const before = (await store.getNotifications(OTHER)).length;
+        await store.createExpense(DEMO, {
+          groupId: "g1",
+          description: "Notify test",
+          category: "food",
+          amount: 400,
+          payerId: DEMO,
+          participantIds: [DEMO, OTHER],
+          date: "2026-07-25",
+        });
+        expect((await store.getNotifications(OTHER)).length).toBe(before + 1);
+      });
+
+      it("does not notify the person who added it", async () => {
+        const before = (await store.getNotifications(DEMO)).length;
+        await store.createExpense(DEMO, {
+          groupId: "g1",
+          description: "Self notify test",
+          category: "food",
+          amount: 400,
+          payerId: DEMO,
+          participantIds: [DEMO, OTHER],
+          date: "2026-07-25",
+        });
+        expect((await store.getNotifications(DEMO)).length).toBe(before);
+      });
+
+      it("notifies the payee that a payment needs confirming", async () => {
+        const before = (await store.getNotifications("u4")).length;
+        await store.createSettlement(DEMO, {
+          groupId: STRANGER_GROUP,
+          toUserId: "u4",
+          amount: 500,
+          method: "UPI",
+        });
+        expect((await store.getNotifications("u4")).length).toBe(before + 1);
+      });
+
+      it("notifies the payer when their payment is confirmed", async () => {
+        const settlement = await store.createSettlement(DEMO, {
+          groupId: STRANGER_GROUP,
+          toUserId: "u4",
+          amount: 500,
+          method: "UPI",
+        });
+        const before = (await store.getNotifications(DEMO)).length;
+        await store.resolveSettlement("u4", settlement.id, "confirmed");
+        expect((await store.getNotifications(DEMO)).length).toBe(before + 1);
+      });
+
+      it("notifies the payer when their payment is declined", async () => {
+        const settlement = await store.createSettlement(DEMO, {
+          groupId: STRANGER_GROUP,
+          toUserId: "u4",
+          amount: 500,
+          method: "UPI",
+        });
+        const before = (await store.getNotifications(DEMO)).length;
+        await store.resolveSettlement("u4", settlement.id, "declined");
+        expect((await store.getNotifications(DEMO)).length).toBe(before + 1);
+      });
+    });
+
     describe("insight narratives", () => {
       const narrative = {
         text: "You spent more on food this month.",

@@ -5,7 +5,8 @@ import { MongoServerError } from "mongodb";
 import { equalSplit } from "@/lib/balances";
 import { collections, type ActivityDoc, type ExpenseDoc, type GroupDoc, type NotificationDoc, type SettlementDoc, type UserDoc } from "@/lib/db/collections";
 import { ensureIndexes } from "@/lib/db/indexes";
-import { initials as toInitials } from "@/lib/format";
+import { formatCurrency, initials as toInitials } from "@/lib/format";
+import { dueOccurrences } from "@/lib/recurring";
 import type { AccentToken, ActivityItem, AppUser, Expense, Group, NotificationItem, Settlement } from "@/lib/types";
 import {
   ForbiddenError,
@@ -113,6 +114,24 @@ async function recordActivity(groupId: string, actorId: string, message: string)
     message,
     createdAt: new Date().toISOString(),
   });
+}
+
+async function notify(
+  entries: { userId: string; title: string; body: string }[]
+): Promise<void> {
+  if (entries.length === 0) return;
+  const { notifications } = await db();
+  const now = new Date().toISOString();
+  await notifications.insertMany(
+    entries.map((e) => ({ _id: nextId("n"), ...e, read: false, createdAt: now }))
+  );
+}
+
+/** First name, for notification copy. */
+async function firstName(userId: string): Promise<string> {
+  const { users } = await db();
+  const doc = await users.findOne({ _id: userId }, { projection: { name: 1 } });
+  return doc?.name.split(" ")[0] ?? "Someone";
 }
 
 export const mongoStore: DataStore = {
@@ -228,6 +247,18 @@ export const mongoStore: DataStore = {
     };
     await expenses.insertOne(doc);
     await recordActivity(group._id, actorId, `You added **${doc.description}** to ${group.name}`);
+
+    const actorName = await firstName(actorId);
+    await notify(
+      // Everyone but the person who just did it — they were there.
+      doc.splits
+        .filter((split) => split.userId !== actorId)
+        .map((split) => ({
+          userId: split.userId,
+          title: `${actorName} added an expense`,
+          body: `${doc.description} · ${formatCurrency(split.amount)} in ${group.name}`,
+        }))
+    );
     return toExpense(doc);
   },
 
@@ -294,6 +325,15 @@ export const mongoStore: DataStore = {
       actorId,
       `You logged a **${input.method}** payment to ${payee?.name ?? "a member"}`
     );
+
+    // The payee is the only one who can confirm, so they must be told.
+    await notify([
+      {
+        userId: input.toUserId,
+        title: "Payment awaiting your confirmation",
+        body: `${await firstName(actorId)} logged ${formatCurrency(input.amount)} via ${input.method} in ${group.name}`,
+      },
+    ]);
     return toSettlement(doc);
   },
 
@@ -315,6 +355,19 @@ export const mongoStore: DataStore = {
       { returnDocument: "after" }
     );
     if (!updated) throw new ValidationError("This settlement has already been resolved");
+
+    // Tell the other party either way — the balance only moves on confirmation.
+    const resolverName = await firstName(actorId);
+    await notify([
+      {
+        userId: doc.fromUserId === actorId ? doc.toUserId : doc.fromUserId,
+        title: status === "confirmed" ? "Payment confirmed" : "Payment declined",
+        body:
+          status === "confirmed"
+            ? `${resolverName} confirmed ${formatCurrency(doc.amount)}`
+            : `${resolverName} declined ${formatCurrency(doc.amount)} — the balance is unchanged`,
+      },
+    ]);
     return toSettlement(updated);
   },
 
@@ -362,5 +415,76 @@ export const mongoStore: DataStore = {
     // Keyed on the user id, so regenerating replaces rather than accumulates.
     // `replaceOne` takes the document without _id — it comes from the filter.
     await narratives.replaceOne({ _id: actorId }, { ...narrative }, { upsert: true });
+  },
+
+  async materializeRecurring(today) {
+    const { expenses, groups, activity, notifications } = await db();
+
+    const templates = await expenses
+      .find({ "recurring.active": true, "recurring.nextRunAt": { $lte: today } })
+      .toArray();
+
+    const created: Expense[] = [];
+
+    for (const template of templates) {
+      const rule = template.recurring!;
+      const { dates, nextRunAt } = dueOccurrences(rule, today);
+      if (dates.length === 0) continue;
+
+      // Claim the rule by advancing it, conditioned on the value we read.
+      // Two concurrent cron invocations would otherwise both see the same
+      // nextRunAt and each create a full set of expenses — the failure mode
+      // that silently double-charges everyone in the group.
+      const claimed = await expenses.findOneAndUpdate(
+        { _id: template._id, "recurring.nextRunAt": rule.nextRunAt },
+        { $set: { "recurring.nextRunAt": nextRunAt } },
+        { returnDocument: "after" }
+      );
+      if (!claimed) continue; // another run got there first
+
+      const group = await groups.findOne({ _id: template.groupId }, { projection: { name: 1 } });
+      const now = new Date().toISOString();
+
+      for (const date of dates) {
+        const doc: ExpenseDoc = {
+          _id: nextId("e"),
+          groupId: template.groupId,
+          description: template.description,
+          category: template.category,
+          amount: template.amount,
+          payerId: template.payerId,
+          splitMethod: template.splitMethod,
+          splits: template.splits,
+          date,
+          ...(template.notes ? { notes: template.notes } : {}),
+          // Generated expenses are not themselves templates.
+        };
+        await expenses.insertOne(doc);
+        created.push(toExpense(doc));
+
+        await activity.insertOne({
+          _id: nextId("a"),
+          groupId: template.groupId,
+          actorId: template.payerId,
+          message: `**${template.description}** recurred in ${group?.name ?? "a group"}`,
+          createdAt: now,
+        });
+
+        if (doc.splits.length > 0) {
+          await notifications.insertMany(
+            doc.splits.map((split) => ({
+              _id: nextId("n"),
+              userId: split.userId,
+              title: "Recurring expense added",
+              body: `${template.description} · ${formatCurrency(split.amount)} in ${group?.name ?? "a group"}`,
+              read: false,
+              createdAt: now,
+            }))
+          );
+        }
+      }
+    }
+
+    return { created, rulesConsidered: templates.length };
   },
 };

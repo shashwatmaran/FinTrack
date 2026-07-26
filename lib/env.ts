@@ -65,6 +65,13 @@ const serverSchema = z.object({
   /** Optional: Ollama and other local servers need no key. */
   AI_API_KEY: optionalString,
 
+  /**
+   * Phase: scheduled jobs. Shared secret Vercel Cron presents as a bearer
+   * token. Without it the recurring endpoint refuses to run rather than
+   * running unauthenticated.
+   */
+  CRON_SECRET: optionalString,
+
   // Phase: storage + observability
   BLOB_READ_WRITE_TOKEN: optionalString,
   SENTRY_DSN: optionalUrl,
@@ -94,6 +101,7 @@ export const features = {
   aiInsights: Boolean(env.AI_BASE_URL && env.AI_MODEL),
   blobStorage: Boolean(env.BLOB_READ_WRITE_TOKEN),
   errorReporting: Boolean(env.SENTRY_DSN),
+  scheduledJobs: Boolean(env.CRON_SECRET),
 } as const;
 
 export type FeatureFlag = keyof typeof features;

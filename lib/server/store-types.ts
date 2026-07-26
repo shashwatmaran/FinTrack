@@ -85,6 +85,25 @@ export interface DataStore {
    */
   getNarrative(actorId: string): Promise<StoredNarrative | null>;
   saveNarrative(actorId: string, narrative: StoredNarrative): Promise<void>;
+
+  /**
+   * Materialises every recurring expense due on or before `today`.
+   *
+   * Unlike every other method here this is **not** scoped to an acting user —
+   * it is the scheduled job, running across all groups. It must therefore be
+   * reachable only from the cron endpoint, never from a user-facing route.
+   *
+   * Idempotent: a rule's `nextRunAt` is advanced as part of claiming it, so
+   * running twice in a day produces nothing the second time.
+   */
+  materializeRecurring(today: string): Promise<MaterializeResult>;
+}
+
+export interface MaterializeResult {
+  /** Expenses actually created, oldest occurrence first. */
+  created: Expense[];
+  /** Recurring rules examined, whether or not anything was due. */
+  rulesConsidered: number;
 }
 
 export interface StoredNarrative {

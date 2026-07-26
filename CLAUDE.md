@@ -31,6 +31,8 @@ Tests need no running database — `tests/mongo-store.test.ts` starts a real
 - **Single currency: INR.** `formatCurrency` takes no currency argument. Don't add a per-user currency preference — in a shared-expense app the currency belongs to the money, not the viewer, so a display-only setting would show one debt as ₹500 to one member and $500 to another. Real multi-currency needs a currency per group plus FX rates.
 - **The model never does arithmetic.** Figures are computed in `lib/insights.ts` and passed to the model as text. `lib/ai/narrate.ts` discards any completion containing a number that wasn't supplied — a plausible wrong figure is worse than no narrative.
 - **`/api/*` returns JSON, always.** `proxy.ts` 401s API calls rather than redirecting them; a redirect would hand `fetch` an HTML body.
+- **`materializeRecurring` is the one store method with no acting user.** It is the scheduled job and writes across every group, so it must stay reachable only from `/api/cron/*` — never from a user-facing route. Adding a new cron path means adding it to the `proxy.ts` matcher exclusion too, or the proxy will 401 it before the handler runs.
+- **Recurring scheduling maths lives in `lib/recurring.ts` and stays pure.** Month-end clamping and catch-up are where the bugs are; keeping it free of dates-from-`Date.now()` and database access is what makes them testable.
 
 ## Tests
 

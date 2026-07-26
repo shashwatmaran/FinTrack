@@ -38,7 +38,15 @@ export default auth((request) => {
 });
 
 export const config = {
-  // Everything except Next internals, the auth endpoints themselves, and
-  // static assets. /api/signup is excluded so signing up works while signed out.
-  matcher: ["/((?!api/auth|api/signup|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  /**
+   * Everything except Next internals and static assets, minus three API paths
+   * that are legitimately reachable without a session:
+   *   api/auth   — the sign-in flow itself
+   *   api/signup — account creation
+   *   api/cron   — Vercel Cron, which presents a bearer secret, not a cookie;
+   *                the route enforces that itself
+   */
+  matcher: [
+    "/((?!api/auth|api/signup|api/cron|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+  ],
 };

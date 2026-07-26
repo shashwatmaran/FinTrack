@@ -12,7 +12,8 @@ import {
   SETTLEMENTS,
   USERS,
 } from "@/lib/mock-data";
-import { initials as toInitials } from "@/lib/format";
+import { formatCurrency, initials as toInitials } from "@/lib/format";
+import { dueOccurrences } from "@/lib/recurring";
 import type { AccentToken, ActivityItem, AppUser, Expense, Group, NotificationItem, Settlement } from "@/lib/types";
 import {
   ForbiddenError,
@@ -184,6 +185,20 @@ export const memoryStore: DataStore = {
       message: `You added **${expense.description}** to ${group.name}`,
       createdAt: new Date().toISOString(),
     });
+
+    const actorName = s.users.find((u) => u.id === actorId)?.name.split(" ")[0] ?? "Someone";
+    for (const split of expense.splits) {
+      // Everyone but the person who just did it — they were there.
+      if (split.userId === actorId) continue;
+      s.notifications.unshift({
+        id: nextId("n"),
+        userId: split.userId,
+        title: `${actorName} added an expense`,
+        body: `${expense.description} · ${formatCurrency(split.amount)} in ${group.name}`,
+        read: false,
+        createdAt: new Date().toISOString(),
+      });
+    }
     return { ...expense };
   },
 
@@ -250,6 +265,17 @@ export const memoryStore: DataStore = {
       message: `You logged a **${input.method}** payment to ${payee?.name ?? "a member"}`,
       createdAt: new Date().toISOString(),
     });
+
+    // The payee is the only one who can confirm, so they must be told.
+    const payerName = s.users.find((u) => u.id === actorId)?.name.split(" ")[0] ?? "Someone";
+    s.notifications.unshift({
+      id: nextId("n"),
+      userId: input.toUserId,
+      title: "Payment awaiting your confirmation",
+      body: `${payerName} logged ${formatCurrency(input.amount)} via ${input.method} in ${group.name}`,
+      read: false,
+      createdAt: new Date().toISOString(),
+    });
     return { ...settlement };
   },
 
@@ -270,6 +296,21 @@ export const memoryStore: DataStore = {
     }
 
     settlement.status = status;
+
+    // Tell the payer either way — their balance only moves on confirmation.
+    const resolverName =
+      s.users.find((u) => u.id === actorId)?.name.split(" ")[0] ?? "The other person";
+    s.notifications.unshift({
+      id: nextId("n"),
+      userId: settlement.fromUserId === actorId ? settlement.toUserId : settlement.fromUserId,
+      title: status === "confirmed" ? "Payment confirmed" : "Payment declined",
+      body:
+        status === "confirmed"
+          ? `${resolverName} confirmed ${formatCurrency(settlement.amount)}`
+          : `${resolverName} declined ${formatCurrency(settlement.amount)} — the balance is unchanged`,
+      read: false,
+      createdAt: new Date().toISOString(),
+    });
     return { ...settlement };
   },
 
@@ -306,5 +347,53 @@ export const memoryStore: DataStore = {
 
   async saveNarrative(actorId, narrative) {
     state().narratives.set(actorId, { ...narrative });
+  },
+
+  async materializeRecurring(today) {
+    const s = state();
+    const templates = s.expenses.filter((e) => e.recurring?.active && e.recurring.nextRunAt <= today);
+    const created: Expense[] = [];
+
+    for (const template of templates) {
+      const { dates, nextRunAt } = dueOccurrences(template.recurring!, today);
+      // Advance the schedule first: the same ordering the Mongo store uses to
+      // claim a rule, so a second run in the same day finds nothing.
+      template.recurring = { ...template.recurring!, nextRunAt };
+
+      const group = s.groups.find((g) => g.id === template.groupId);
+      for (const date of dates) {
+        const expense: Expense = {
+          ...template,
+          id: nextId("e"),
+          date,
+          // Generated expenses are not themselves templates.
+          recurring: undefined,
+          splits: template.splits.map((split) => ({ ...split })),
+        };
+        s.expenses.unshift(expense);
+        created.push(expense);
+
+        s.activity.unshift({
+          id: nextId("a"),
+          groupId: template.groupId,
+          actorId: template.payerId,
+          message: `**${template.description}** recurred in ${group?.name ?? "a group"}`,
+          createdAt: new Date().toISOString(),
+        });
+
+        for (const split of expense.splits) {
+          s.notifications.unshift({
+            id: nextId("n"),
+            userId: split.userId,
+            title: "Recurring expense added",
+            body: `${template.description} · ${formatCurrency(split.amount)} in ${group?.name ?? "a group"}`,
+            read: false,
+            createdAt: new Date().toISOString(),
+          });
+        }
+      }
+    }
+
+    return { created, rulesConsidered: templates.length };
   },
 };
