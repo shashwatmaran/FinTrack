@@ -42,13 +42,28 @@ export function SignUpForm() {
 
     // Account exists; establish the session through the same provider that
     // normal sign-in uses rather than minting a token here.
-    const result = await signIn("credentials", {
-      email: values.email,
-      password: values.password,
-      redirect: false,
-    });
+    //
+    // Everything past this point must still say the account was created. The
+    // signup succeeded, so telling the user it failed would send them back to
+    // create a duplicate and hit "email already registered".
+    let result: Awaited<ReturnType<typeof signIn>> | undefined;
+    try {
+      result = await signIn("credentials", {
+        email: values.email,
+        password: values.password,
+        redirect: false,
+      });
+    } catch {
+      setFormError("Account created, but signing you in failed. Try signing in.");
+      return;
+    }
+
     if (result?.error) {
-      setFormError("Account created, but sign-in failed. Try signing in.");
+      setFormError(
+        result.error === "RateLimited"
+          ? "Account created. Too many sign-in attempts from this network — wait a minute, then sign in."
+          : "Account created, but sign-in failed. Try signing in."
+      );
       return;
     }
 

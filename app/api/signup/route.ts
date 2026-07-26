@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { getStore } from "@/lib/server/get-store";
-import {
-  SIGNUP_RATE_LIMIT,
-  checkRateLimit,
-  clientIp,
-} from "@/lib/server/rate-limit";
+import { SIGNUP_RATE_LIMIT, checkRequestRateLimit } from "@/lib/server/rate-limit";
 import { ValidationError } from "@/lib/server/store-types";
 import { signUpSchema } from "@/lib/validation";
 
@@ -17,7 +13,7 @@ import { signUpSchema } from "@/lib/validation";
 export async function POST(request: Request) {
   // Rate-limited before parsing: account creation is unauthenticated and runs
   // bcrypt, so it is both a spam vector and a CPU-exhaustion vector.
-  const limit = checkRateLimit(`signup:${clientIp(request)}`, SIGNUP_RATE_LIMIT);
+  const limit = checkRequestRateLimit(request, "signup", SIGNUP_RATE_LIMIT);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Too many sign-up attempts. Try again in a few minutes." },

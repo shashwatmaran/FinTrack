@@ -24,11 +24,25 @@ export function SignInForm() {
 
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
-    const result = await signIn("credentials", { ...values, redirect: false });
+
+    let result: Awaited<ReturnType<typeof signIn>> | undefined;
+    try {
+      result = await signIn("credentials", { ...values, redirect: false });
+    } catch {
+      // signIn() throws on any response it can't parse. Never leave the form
+      // silent — a submit that appears to do nothing reads as a broken app and
+      // invites the retries that make a rate limit worse.
+      setFormError("Something went wrong signing in. Try again in a moment.");
+      return;
+    }
 
     if (result?.error) {
-      // Deliberately vague: don't reveal whether the email exists.
-      setFormError("That email and password don't match an account.");
+      setFormError(
+        result.error === "RateLimited"
+          ? "Too many sign-in attempts from this network. Wait about a minute, then try again."
+          : // Deliberately vague: don't reveal whether the email exists.
+            "That email and password don't match an account."
+      );
       return;
     }
 

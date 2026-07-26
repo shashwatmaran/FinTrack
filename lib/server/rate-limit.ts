@@ -85,6 +85,39 @@ export function clientIp(request: Request): string {
 export const AUTH_RATE_LIMIT: RateLimitRule = { limit: 10, windowMs: 60_000 };
 export const SIGNUP_RATE_LIMIT: RateLimitRule = { limit: 5, windowMs: 15 * 60_000 };
 
+/**
+ * Rate limits a request by caller address.
+ *
+ * Local requests carry no `x-forwarded-for`, so `clientIp` returns "unknown"
+ * and every caller on the machine — browser tabs, test scripts, a second
+ * developer — lands in one shared bucket. In development that reliably locks
+ * you out of your own app, which is the opposite of the intent, so the check is
+ * skipped there.
+ *
+ * In production it is *not* skipped: failing open on a missing header would let
+ * anyone bypass the limit by stripping it. Vercel always sets the header, so an
+ * "unknown" address in production means the deployment is behind something that
+ * doesn't — worth a loud warning, not a silent exemption.
+ */
+export function checkRequestRateLimit(
+  request: Request,
+  prefix: string,
+  rule: RateLimitRule
+): RateLimitResult {
+  const ip = clientIp(request);
+
+  if (ip === "unknown") {
+    if (process.env.NODE_ENV === "development") {
+      return { ok: true, remaining: rule.limit, retryAfter: 0 };
+    }
+    console.warn(
+      "[fintrack] rate limiting an 'unknown' client address — is the proxy setting x-forwarded-for?"
+    );
+  }
+
+  return checkRateLimit(`${prefix}:${ip}`, rule);
+}
+
 /** Test-only: clears all windows between cases. */
 export function __resetRateLimitForTests(): void {
   globalThis.__fintrackRateLimit = new Map();
