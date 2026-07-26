@@ -104,17 +104,21 @@ export function InsightsView() {
   const max = Math.max(...categories.map((c) => c.amount), 1);
 
   return (
-    <div className="mx-auto max-w-[1120px] animate-ft-slide">
-      <div className="grid items-start gap-4.5 lg:grid-cols-2">
-        <div className="flex flex-col gap-4.5">
-          {/*
-            The narrative leads. Below the cards it could only ever summarise
-            what the reader had already read, which is what makes that kind of
-            block feel like filler. First, it frames them.
-          */}
-          <NarrativeCard />
+    <div className="mx-auto flex max-w-[1120px] animate-ft-slide flex-col gap-4.5">
+      {/*
+        The narrative leads, full width. Below the cards it could only ever
+        summarise what the reader had already read, which is what makes that
+        kind of block feel like filler. First, it frames them.
+      */}
+      <NarrativeCard />
 
-          {insights.map((insight) => {
+      {/*
+        Insights wrap rather than stacking in one column. At six of them a
+        single column ran twice the height of everything beside it and left
+        the page looking half-finished.
+      */}
+      <div className="grid items-start gap-4.5 md:grid-cols-2">
+        {insights.map((insight) => {
             const Trend =
               insight.tone === "up" ? TrendingUp : insight.tone === "down" ? TrendingDown : Sparkles;
             return (
@@ -137,12 +141,12 @@ export function InsightsView() {
                 </div>
                 <p className="text-sm leading-[1.5]">{insight.body}</p>
               </div>
-            );
-          })}
-        </div>
+          );
+        })}
+      </div>
 
-        <div className="flex flex-col gap-4.5">
-          <Card>
+      <div className="grid items-start gap-4.5 lg:grid-cols-2">
+        <Card>
             <CardTitle className="mb-4">Top categories · this month</CardTitle>
             {categories.length === 0 ? (
               <p className="py-6 text-center text-sm font-semibold text-ft-muted">
@@ -168,13 +172,12 @@ export function InsightsView() {
             )}
           </Card>
 
-          <div className="rounded-xl border-[2.5px] border-ft-ink bg-ft-purple p-5 shadow-neo">
-            <CardTitle className="mb-2">Monthly report</CardTitle>
-            <p className="text-[13.5px] leading-[1.5]">
-              Spending by group, category trends, and a settlement summary — exportable once the
-              reporting job and storage credentials are wired up.
-            </p>
-          </div>
+        <div className="rounded-xl border-[2.5px] border-ft-ink bg-ft-purple p-5 shadow-neo">
+          <CardTitle className="mb-2">Monthly report</CardTitle>
+          <p className="text-[13.5px] leading-[1.5]">
+            Spending by group, category trends, and a settlement summary — exportable once the
+            reporting job and storage credentials are wired up.
+          </p>
         </div>
       </div>
     </div>
