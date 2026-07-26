@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label } from "@/components/ui/input";
+import { signInErrorMessage } from "@/lib/auth-errors";
 import { signInSchema, type SignInValues } from "@/lib/validation";
 
 export function SignInForm() {
@@ -37,12 +38,7 @@ export function SignInForm() {
     }
 
     if (result?.error) {
-      setFormError(
-        result.error === "RateLimited"
-          ? "Too many sign-in attempts from this network. Wait about a minute, then try again."
-          : // Deliberately vague: don't reveal whether the email exists.
-            "That email and password don't match an account."
-      );
+      setFormError(signInErrorMessage(result.error));
       return;
     }
 
