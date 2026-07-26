@@ -24,6 +24,21 @@ Tests need no running database — `tests/mongo-store.test.ts` starts a real
 - **Authorization lives in the store, not the route handler.** Every `DataStore` method takes the acting `userId` and enforces access itself. Route handlers just resolve the session and map errors. Adding a check to a route handler instead means the other store implementation silently lacks it.
 - **Both store implementations must stay in sync.** `memory-store.ts` and `mongo-store.ts` implement the same interface; a new method needs both, with the same authorization rules.
 - **The client fetches only through `hooks/use-fintrack-data.ts`.** Components never call `lib/api/client.ts` directly, and never import anything from `lib/server/` or `lib/db/` (those are `server-only` and will fail the build).
+- **The shell loads through one query, not one per resource.** `/api/bootstrap`
+  returns everything the signed-in shell needs, `app/(app)/layout.tsx`
+  prefetches it and dehydrates it into the cache, and the hooks in
+  `use-fintrack-data.ts` are `select`s over that single query. Five separate
+  requests cost almost nothing on a persistent server and five cold starts plus
+  five database connections on serverless. The prefetch belongs in the *layout*
+  because the shell subscribes to the same query — prefetching in a page leaves
+  the shell outside the hydration boundary, so it fetches anyway.
+- **`queryKeys` lives in `lib/query-keys.ts`, which carries no directive.** A
+  server component importing it from a `"use client"` module gets a client
+  reference proxy: it works by identity inside one server render, then
+  serialises to `null` crossing into the RSC payload, so the browser cannot
+  match the dehydrated entry and refetches everything the prefetch just paid
+  for. Nothing looks broken — the page is just quietly slower, which is the
+  worst kind of regression. `tests/query-keys.test.ts` guards it.
 - **Server data never goes into Zustand.** TanStack Query owns it. `stores/ui-store.ts` is for modals, filters, and toasts only.
 - **Empty is not loading.** Use `isPending` from the query to decide whether to show a skeleton. Treating `data.length === 0` as loading strands new accounts on a permanent skeleton.
 - **Accent colours are never interpolated into class names.** Tailwind can only see complete strings, so go through the maps in `lib/accent.ts`.

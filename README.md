@@ -282,6 +282,21 @@ GET /api/health
 
 Unauthenticated by necessity — it has to answer when auth is the broken thing — so it reports status words and booleans only: never a connection string, hostname, error message, or secret value. `database` distinguishes the three failures that otherwise look identical from a browser: `in-memory` (no `MONGODB_URI`, app silently works but data resets), `unreachable` (set but blocked), `connected`.
 
+### Performance
+
+Serverless charges per invocation, not per server. The shell used to fetch its data as five parallel requests, which meant five function invocations and five database connections for one page load — measured at ~200ms of invocation overhead *before* any handler ran, with warm requests no faster than cold.
+
+It now loads through a single `/api/bootstrap`, prefetched and dehydrated in `app/(app)/layout.tsx` so the dashboard HTML arrives with its content and the browser makes **zero** API calls to render it.
+
+| | Before | After |
+| --- | --- | --- |
+| Dashboard to content | ~1.4s (page, then 5 calls) | **~865ms** (one request) |
+| Skeleton on first paint | yes | none |
+| Return to dashboard | cached | cached |
+| Sign-in | ~570ms | ~570ms |
+
+Sign-in is unchanged on purpose: it is a bcrypt comparison plus a database read, and neither is cacheable. Cold starts still cost 4–5s on Hobby — that is the plan, not the code.
+
 ### Two traps that cost an afternoon
 
 **Deployment Protection.** Vercel gates preview *and* production deployments behind its own SSO by default. Requests get a `302` to `vercel.com/sso-api` before reaching the app. A browser already signed in to Vercel loads the page normally, so the app looks fine — but its `fetch` calls follow that redirect and get HTML instead of JSON, and sign-in fails with no useful error. Settings → Deployment Protection → *Only Preview Deployments*. Diagnose it with `curl -I`: a `Location:` header pointing at `vercel.com` means the app never ran.
