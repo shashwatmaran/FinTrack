@@ -13,6 +13,7 @@ import {
   useCurrentUser,
   useExpenses,
   useInsightNarrative,
+  useSettlements,
 } from "@/hooks/use-fintrack-data";
 
 /**
@@ -92,10 +93,13 @@ function NarrativeCard() {
 export function InsightsView() {
   const { data: currentUser } = useCurrentUser();
   const { data: expenses = [] } = useExpenses();
+  const { data: settlements = [] } = useSettlements();
 
   if (!currentUser) return <PageSkeleton />;
 
-  const insights = buildInsights(currentUser.id, expenses);
+  // Settlements feed the "what you actually owe" insight; the narrative route
+  // passes the same pair, so both sides describe the same month.
+  const insights = buildInsights(currentUser.id, expenses, new Date(), settlements);
   const categories = categoryTotals(currentUser.id, expenses, currentMonthKey());
   const max = Math.max(...categories.map((c) => c.amount), 1);
 
@@ -103,6 +107,13 @@ export function InsightsView() {
     <div className="mx-auto max-w-[1120px] animate-ft-slide">
       <div className="grid items-start gap-4.5 lg:grid-cols-2">
         <div className="flex flex-col gap-4.5">
+          {/*
+            The narrative leads. Below the cards it could only ever summarise
+            what the reader had already read, which is what makes that kind of
+            block feel like filler. First, it frames them.
+          */}
+          <NarrativeCard />
+
           {insights.map((insight) => {
             const Trend =
               insight.tone === "up" ? TrendingUp : insight.tone === "down" ? TrendingDown : Sparkles;
@@ -128,8 +139,6 @@ export function InsightsView() {
               </div>
             );
           })}
-
-          <NarrativeCard />
         </div>
 
         <div className="flex flex-col gap-4.5">

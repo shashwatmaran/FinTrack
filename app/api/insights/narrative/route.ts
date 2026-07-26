@@ -25,8 +25,11 @@ export interface NarrativeResponse {
 export const GET = withAuth<NarrativeResponse>(async ({ userId, store }) => {
   if (!isAiConfigured()) return { narrative: null, status: "not-configured" };
 
-  const expenses = await store.getExpenses(userId);
-  const insights = buildInsights(userId, expenses);
+  const [expenses, settlements] = await Promise.all([
+    store.getExpenses(userId),
+    store.getSettlements(userId),
+  ]);
+  const insights = buildInsights(userId, expenses, new Date(), settlements);
   if (insights.length === 0) return { narrative: null, status: "ok" };
 
   const hash = insightsHash(insights);

@@ -120,6 +120,153 @@ describe("buildInsights", () => {
       "top-category",
       "month-over-month",
       "largest-expense",
+      // "other" paid and split with "me", so there is a real debt to report.
+      "settlement-position",
     ]);
+  });
+});
+
+describe("percentage changes stay meaningful", () => {
+  /**
+   * The bug this guards: a month following a near-empty one produced deltas
+   * like "+3143%". Arithmetically true, useless to read, and actively harmful
+   * once a model restates it as a finding.
+   */
+  it("does not report an absurd percentage against a tiny baseline", () => {
+    const insights = buildInsights(
+      "me",
+      [expense("big", 24_000, "2026-07-01"), expense("tiny", 740, "2026-06-01")],
+      NOW
+    );
+
+    for (const insight of insights) {
+      const percent = /(-?\d+)%/.exec(insight.delta);
+      if (percent) expect(Math.abs(Number(percent[1]))).toBeLessThanOrEqual(300);
+    }
+  });
+
+  it("falls back to the absolute difference instead", () => {
+    const insights = buildInsights(
+      "me",
+      [expense("big", 24_000, "2026-07-01"), expense("tiny", 740, "2026-06-01")],
+      NOW
+    );
+    const mom = insights.find((i) => i.id === "month-over-month")!;
+
+    expect(mom.delta).not.toMatch(/%/);
+    expect(mom.delta).toMatch(/^\+₹/);
+  });
+
+  it("still uses a percentage when the baseline is material", () => {
+    const insights = buildInsights(
+      "me",
+      [expense("a", 1200, "2026-07-01"), expense("b", 1000, "2026-06-01")],
+      NOW
+    );
+    expect(insights.find((i) => i.id === "month-over-month")!.delta).toMatch(/^\+\d+%$/);
+  });
+
+  it("calls a first month 'new' rather than dividing by zero", () => {
+    const insights = buildInsights("me", [expense("a", 500, "2026-07-01")], NOW);
+    expect(insights.find((i) => i.id === "month-over-month")!.delta).toBe("new");
+  });
+});
+
+describe("insights the cards did not previously carry", () => {
+  it("reframes a spike by removing the largest expense", () => {
+    const expenses = [
+      expense("trip", 40_000, "2026-07-02"),
+      expense("lunch", 400, "2026-07-03"),
+      expense("apr", 1000, "2026-04-05"),
+      expense("may", 1000, "2026-05-05"),
+      expense("jun", 1000, "2026-06-05"),
+    ];
+    const underlying = buildInsights("me", expenses, NOW).find(
+      (i) => i.id === "underlying-spend"
+    )!;
+
+    expect(underlying).toBeDefined();
+    // Share of the 400 lunch is 200; the 500 median is the prior three months.
+    expect(underlying.body).toContain("₹200.00");
+    expect(underlying.body).toContain("₹500.00");
+    expect(underlying.tone).toBe("down");
+  });
+
+  /**
+   * The model was observed calling a figure eight times its median "close to
+   * your usual pace". Every number in that sentence was real, so the numeric
+   * guard could not catch it. Stating the direction in words moves the
+   * judgement out of the model and into arithmetic.
+   */
+  it("states the comparison in words so the model never has to judge it", () => {
+    const above = buildInsights(
+      "me",
+      [
+        expense("trip", 40_000, "2026-07-02"),
+        expense("rest", 8000, "2026-07-03"),
+        expense("apr", 1000, "2026-04-05"),
+        expense("may", 1000, "2026-05-05"),
+        expense("jun", 1000, "2026-06-05"),
+      ],
+      NOW
+    ).find((i) => i.id === "underlying-spend")!;
+    expect(above.body).toContain("above your");
+
+    const below = buildInsights(
+      "me",
+      [
+        expense("trip", 40_000, "2026-07-02"),
+        expense("rest", 100, "2026-07-03"),
+        expense("apr", 4000, "2026-04-05"),
+        expense("may", 4000, "2026-05-05"),
+        expense("jun", 4000, "2026-06-05"),
+      ],
+      NOW
+    ).find((i) => i.id === "underlying-spend")!;
+    expect(below.body).toContain("below your");
+  });
+
+  it("omits the reframing when it would restate the total", () => {
+    // A single expense means "excluding it" is just zero — nothing to say.
+    const insights = buildInsights("me", [expense("only", 900, "2026-07-01")], NOW);
+    expect(insights.find((i) => i.id === "underlying-spend")).toBeUndefined();
+  });
+
+  it("omits the reframing without a baseline to compare against", () => {
+    const insights = buildInsights(
+      "me",
+      [expense("a", 900, "2026-07-01"), expense("b", 100, "2026-07-02")],
+      NOW
+    );
+    expect(insights.find((i) => i.id === "underlying-spend")).toBeUndefined();
+  });
+
+  it("reports what the user owes and is owed", () => {
+    const position = buildInsights("me", [expense("a", 1000, "2026-07-01")], NOW).find(
+      (i) => i.id === "settlement-position"
+    )!;
+
+    expect(position).toBeDefined();
+    // "other" paid 1000 and my share is 500, so I owe 500.
+    expect(position.body).toContain("₹500.00");
+    expect(position.tone).toBe("down");
+  });
+
+  it("separates recurring commitments from discretionary spend", () => {
+    const rent: Expense = {
+      ...expense("rent", 2000, "2026-07-01", "housing"),
+      recurring: { cadence: "monthly", nextRunAt: "2026-08-01", active: true },
+    };
+    const fixed = buildInsights("me", [rent, expense("food", 2000, "2026-07-02")], NOW).find(
+      (i) => i.id === "fixed-commitments"
+    )!;
+
+    expect(fixed).toBeDefined();
+    expect(fixed.delta).toBe("50%");
+  });
+
+  it("says nothing about commitments when there are none", () => {
+    const insights = buildInsights("me", [expense("a", 900, "2026-07-01")], NOW);
+    expect(insights.find((i) => i.id === "fixed-commitments")).toBeUndefined();
   });
 });

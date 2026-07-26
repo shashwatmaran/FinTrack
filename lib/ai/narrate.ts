@@ -13,15 +13,48 @@ import type { Insight } from "@/lib/insights";
  * safe to run a small open-weight model against financial data.
  */
 
+/**
+ * The facts are already on screen as cards. A narrative that walks through them
+ * in order adds nothing but length — it is the "AI summary" that reads like
+ * filler because it *is* filler. What the reader cannot get from the cards is
+ * which of six numbers matters and how two of them relate, so that is the only
+ * job given here: pick a through-line, connect at least two facts, say what the
+ * month was actually like. Enumeration is explicitly forbidden.
+ */
 const SYSTEM_PROMPT = [
-  "You write one short paragraph summarising a person's monthly spending.",
+  "You write one short paragraph about a person's month of shared spending.",
+  "",
+  "The reader can already see every fact as a separate card. Restating them is",
+  "worthless — and so is making one point three times in different words. Your",
+  "job is to say what they add up to.",
+  "",
+  "Cover two or three DIFFERENT things, never one thing twice:",
+  "  1. What shaped the spending. If a single expense explains it, say so.",
+  "  2. How the month reads once that expense is set aside, if a fact says.",
+  "  3. Where they stand with the other people, if a fact says.",
   "",
   "Rules:",
+  "- Name the expense that explains the month. Write 'the Goa homestay', never",
+  "  'your largest expense' — the specific thing is the point.",
+  "- Start with the substance. No 'You see', 'It looks like', 'Overall'.",
+  "- Never repeat a figure. Each number appears at most once.",
+  "- Mention at most three figures. Fewer reads better than more.",
+  "- Where a fact already states a comparison in words — above, below, in line",
+  "  with — reuse that exact word. Never substitute a judgement of your own,",
+  "  and never call something normal, high or low unless a fact says so.",
   "- Use ONLY the facts given. Never invent, infer, or recalculate any number.",
   "- Do not introduce any figure that is not present verbatim in the facts.",
-  "- 2 to 3 sentences, under 60 words. Plain prose — no headings, lists, or markdown.",
-  "- Address the reader as 'you'. Be factual and neutral; do not give financial advice.",
-  "- Amounts are Indian rupees and are already formatted. Reproduce them exactly as written.",
+  "- 2 to 3 sentences, under 55 words. Plain prose — no headings, lists, markdown.",
+  "- Address the reader as 'you'. Be factual and neutral; give no financial advice.",
+  "- Amounts are Indian rupees and already formatted. Reproduce them exactly.",
+  "",
+  "Bad — one point, three times:",
+  "  'The Goa homestay drove your month. Your share of ₹12,000.00 was the",
+  "  largest part of it. This one trip dominated your total.'",
+  "Good — two points, no repetition, no invented judgement:",
+  "  'Almost your whole month was the Goa trip, at ₹12,000.00 of your share.",
+  "  What is left sits above your three-month median, and you are still owed",
+  "  ₹31,186.66 across three people.'",
 ].join("\n");
 
 export interface Narrative {
