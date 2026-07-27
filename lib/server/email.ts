@@ -109,36 +109,6 @@ export async function sendPasswordResetEmail(params: {
 }
 
 /**
- * A group invitation.
- *
- * Names who is inviting and to what, because an unexplained link asking you to
- * join something about money is indistinguishable from phishing.
- */
-export async function sendGroupInviteEmail(params: {
-  to: string;
-  inviterName: string;
-  groupName: string;
-  inviteUrl: string;
-  expiresInDays: number;
-}): Promise<boolean> {
-  return sendEmail({
-    to: params.to,
-    subject: `${params.inviterName} invited you to ${params.groupName} on FinTrack`,
-    text: [
-      `${params.inviterName} added you to "${params.groupName}", a shared-expense group.`,
-      "",
-      "Join here:",
-      params.inviteUrl,
-      "",
-      `The link expires in ${params.expiresInDays} days. You'll need a FinTrack`,
-      "account — creating one takes a moment if you don't have one.",
-      "",
-      "Not expecting this? Ignore it. Nothing is shared with you until you join.",
-    ].join("\n"),
-  });
-}
-
-/**
  * The one notification worth an email.
  *
  * A pending settlement is the only event that needs the recipient to *act*,

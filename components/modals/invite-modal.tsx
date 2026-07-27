@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { FieldError, Input, Label, Select } from "@/components/ui/input";
@@ -27,7 +27,10 @@ export function InviteModal({
 }) {
   const { data: currentUser } = useCurrentUser();
   const { data: groups = [] } = useGroups();
-  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [created, setCreated] = useState<{ email: string; url: string; days: number } | null>(
+    null
+  );
+  const [copied, setCopied] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   const mine = groups.filter((g) => !currentUser || g.memberIds.includes(currentUser.id));
@@ -47,13 +50,23 @@ export function InviteModal({
   const onSubmit = handleSubmit(async ({ groupId, email }) => {
     setFormError(null);
     try {
-      await api.inviteToGroup(groupId, email);
+      const { url, expiresInDays } = await api.inviteToGroup(groupId, email);
+      setCreated({ email, url, days: expiresInDays });
     } catch (error) {
-      setFormError(error instanceof ApiError ? error.message : "Couldn't send that invite.");
-      return;
+      setFormError(error instanceof ApiError ? error.message : "Couldn't create that invite.");
     }
-    setSentTo(email);
   });
+
+  const copy = async () => {
+    if (!created) return;
+    try {
+      await navigator.clipboard.writeText(created.url);
+      setCopied(true);
+    } catch {
+      // Clipboard access can be refused; the link is on screen to select by hand.
+      setCopied(false);
+    }
+  };
 
   if (mine.length === 0) {
     return (
@@ -65,19 +78,45 @@ export function InviteModal({
     );
   }
 
-  if (sentTo) {
+  if (created) {
     return (
-      <Modal title="Invite sent" headerClassName="bg-ft-lime" onClose={onClose}>
+      <Modal
+        title="Invite link ready"
+        subtitle="Send this to them however you like."
+        headerClassName="bg-ft-lime"
+        onClose={onClose}
+      >
         <div className="flex items-start gap-3">
           <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg border-2 border-ft-ink bg-ft-lime">
             <CheckCircle2 size={18} strokeWidth={2.3} />
           </span>
           <p className="text-sm leading-[1.5] font-medium">
-            <span className="font-bold">{sentTo}</span> has a link to join. It works for seven
-            days, and they&apos;ll need a FinTrack account to use it.
+            An invite for <span className="font-bold">{created.email}</span> is ready. It works
+            for {created.days} days, and they&apos;ll need a FinTrack account to use it.
           </p>
         </div>
-        <div className="mt-5 flex justify-end">
+
+        <p
+          data-testid="invite-url"
+          className="mt-4 rounded-[10px] border-2 border-ft-ink bg-ft-paper px-3.5 py-3 font-mono text-[12px] break-all select-all"
+        >
+          {created.url}
+        </p>
+
+        {/*
+          Shown once and never again: only the token's hash is stored, so there
+          is no way to look this up later. Losing it means issuing a new invite.
+        */}
+        <p className="mt-2 text-[12.5px] leading-[1.45] font-medium text-ft-muted">
+          Copy it now — this link isn&apos;t recoverable later. Anyone who has it can join the
+          group, so send it the way you&apos;d send a password.
+        </p>
+
+        <div className="mt-5 flex justify-end gap-2.5">
+          <Button variant="secondary" onClick={copy}>
+            <Copy size={15} strokeWidth={2.4} />
+            {copied ? "Copied" : "Copy link"}
+          </Button>
           <Button onClick={onClose}>Done</Button>
         </div>
       </Modal>
@@ -87,7 +126,7 @@ export function InviteModal({
   return (
     <Modal
       title="Invite people"
-      subtitle="They'll get a link to join this group."
+      subtitle="Creates a link you send them yourself."
       headerClassName="bg-ft-pink"
       onClose={onClose}
     >
@@ -114,6 +153,14 @@ export function InviteModal({
           <Label htmlFor="email">Their email</Label>
           <Input id="email" type="email" placeholder="jordan@example.com" {...register("email")} />
           <FieldError>{errors.email?.message}</FieldError>
+          {/*
+            Recorded on the invite, not used to send anything — it is how you
+            tell two outstanding invites apart, and what the group will show as
+            pending.
+          */}
+          <p className="mt-1.5 text-[12px] font-medium text-ft-muted">
+            Only used to label the invite. Nothing is emailed.
+          </p>
         </div>
 
         <p className="text-[12.5px] leading-[1.5] font-medium text-ft-muted">
@@ -125,7 +172,7 @@ export function InviteModal({
             Cancel
           </Button>
           <Button type="submit" variant="pink" disabled={isSubmitting}>
-            {isSubmitting ? "Sending…" : "Send invite"}
+            {isSubmitting ? "Creating…" : "Create invite link"}
           </Button>
         </div>
       </form>

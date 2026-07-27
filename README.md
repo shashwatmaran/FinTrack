@@ -239,6 +239,8 @@ Resetting also evicts sessions that already exist. Auth.js cannot use database s
 
 **Invites** are member-only, because an invite grants sight of everyone's balances in that group. Unknown, expired and already-spent are one answer, so a spent token cannot confirm a group exists.
 
+Creating one returns a link and sends nothing. The inviter already has a way to reach the person they are inviting, and routing it through an email provider bought a dependency that failed silently — the modal insisted the invite had been sent while the provider was rejecting every recipient but the account owner. The email field is now only a label on the invite. The link is shown once, because only its hash is stored.
+
 ### Phase 8 — AI insights ✅
 
 A narrative layer over the deterministic insights in `lib/insights.ts`. See [AI insights](#ai-insights) below.
@@ -377,7 +379,7 @@ Generation runs on read rather than inside the expense write: awaiting a model c
 ## Tests
 
 ```bash
-npm test              # 578 tests, ~11s
+npm test              # 589 tests, ~12s
 npm run test:watch
 npm run test:coverage
 ```
@@ -414,6 +416,7 @@ No database or dev server required — the MongoDB suite starts a real `mongod` 
 | `create-group-modal.test.tsx` | that the members submitted are the members selected |
 | `activity-view.test.tsx` | that stored `**bold**` renders as text, never as HTML |
 | `expense-detail-modal.test.tsx` | that your position is your share, not the whole expense |
+| `invite-modal.test.tsx` | that the link is shown, and nothing claims to have been sent |
 
 **The contract suite is the important one.** `memory-store` and `mongo-store` are separate code but only one runs in production, so an authorization rule can silently exist in one and not the other. Both are held to the same 45 assertions. New `DataStore` methods belong there, not in a per-implementation file.
 

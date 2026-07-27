@@ -98,7 +98,10 @@ export const api = {
     request<{ id: string; email: string }>("/signup", { method: "POST", body: json(body) }),
 
   inviteToGroup: (groupId: string, email: string) =>
-    request<GroupInvite>(`/groups/${groupId}/invites`, { method: "POST", body: json({ email }) }),
+    request<{ invite: GroupInvite; url: string; expiresInDays: number }>(
+      `/groups/${groupId}/invites`,
+      { method: "POST", body: json({ email }) }
+    ),
   acceptInvite: (token: string) =>
     request<Group>("/invites/accept", { method: "POST", body: json({ token }) }),
 
