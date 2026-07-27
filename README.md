@@ -378,7 +378,7 @@ Generation runs on read rather than inside the expense write: awaiting a model c
 ## Tests
 
 ```bash
-npm test              # 589 tests, ~12s
+npm test              # 608 tests, ~12s
 npm run test:watch
 npm run test:coverage
 ```
@@ -408,6 +408,7 @@ No database or dev server required — the MongoDB suite starts a real `mongod` 
 | `sign-in-form.test.tsx` | that a failed submit **always** produces visible feedback |
 | `dashboard-view.test.tsx` | empty-vs-loading, onboarding, rupee formatting |
 | `app-url.test.ts` | that an emailed link points where the recipient can reach |
+| `safe-next.test.ts` | that `?next=` cannot redirect off-origin after a real login |
 | `add-expense-modal.test.tsx` | that the split preview matches what is submitted |
 | `group-detail-view.test.tsx` | which way a balance reads, and escrow at the UI layer |
 | `settle-up-modal.test.tsx` | that a logged payment is a claim, and says so |

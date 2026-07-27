@@ -10,11 +10,14 @@ import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label } from "@/components/ui/input";
 import { signInErrorMessage } from "@/lib/auth-errors";
+import { safeNextPath } from "@/lib/safe-next";
 import { signInSchema, type SignInValues } from "@/lib/validation";
 
 export function SignInForm({ googleEnabled = false }: { googleEnabled?: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get("next"));
+  const signUpHref = nextPath ? `/signup?next=${encodeURIComponent(nextPath)}` : "/signup";
   const [formError, setFormError] = useState<string | null>(null);
 
   const {
@@ -42,8 +45,9 @@ export function SignInForm({ googleEnabled = false }: { googleEnabled?: boolean 
       return;
     }
 
-    const next = searchParams.get("next");
-    router.push(next?.startsWith("/") ? next : "/dashboard");
+    // safeNextPath, not startsWith("/") — "//evil.example.com" passes that and
+    // is a protocol-relative URL to another origin.
+    router.push(nextPath ?? "/dashboard");
     router.refresh();
   });
 
@@ -124,7 +128,15 @@ export function SignInForm({ googleEnabled = false }: { googleEnabled?: boolean 
 
       <p className="mt-6 text-center text-[13.5px] font-medium text-ft-muted">
         New here?{" "}
-        <Link href="/signup" className="font-bold text-ft-ink underline underline-offset-2">
+        {/*
+          Carries `next` across: someone following an invite who has no account
+          yet goes this way, and dropping it here loses the invite token just as
+          surely as dropping it in the proxy did.
+        */}
+        <Link
+          href={signUpHref}
+          className="font-bold text-ft-ink underline underline-offset-2"
+        >
           Create an account
         </Link>
       </p>

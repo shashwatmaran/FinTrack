@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,6 +11,7 @@ import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api/client";
+import { safeNextPath } from "@/lib/safe-next";
 import { signUpSchema } from "@/lib/validation";
 
 const formSchema = signUpSchema.extend({
@@ -21,6 +22,12 @@ type Values = z.infer<typeof formSchema>;
 
 export function SignUpForm() {
   const router = useRouter();
+  /**
+   * Someone following an invite with no account arrives here, so the
+   * destination has to survive signup as well as sign-in — otherwise the token
+   * is lost at the last step of the very journey it exists for.
+   */
+  const nextPath = safeNextPath(useSearchParams().get("next"));
   const [formError, setFormError] = useState<string | null>(null);
 
   const {
@@ -67,7 +74,7 @@ export function SignUpForm() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push(nextPath ?? "/dashboard");
     router.refresh();
   });
 

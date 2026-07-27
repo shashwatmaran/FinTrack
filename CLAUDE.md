@@ -149,6 +149,15 @@ AI narratives are optional rather than deferred: set `AI_BASE_URL` + `AI_MODEL` 
   production. Use the direct seed-list connection string instead (see
   `.env.example`), and note it doesn't survive Atlas topology changes.
 - Route guarding lives in `proxy.ts` (Next 16's rename of `middleware.ts`), not in the client shell.
+- **The sign-in redirect carries the query string, not just the path.** `/invite?token=…`
+  is the reason: sending only `pathname` dropped the token before sign-in, so
+  anyone following an invite while signed out landed on the invite page with
+  nothing to redeem. `next` also has to survive the hop to `/signup`, since
+  someone following an invite is exactly the person without an account yet.
+- **Validate `?next=` with `safeNextPath`, never `startsWith("/")`.**
+  `//evil.example.com` starts with a slash and is a protocol-relative URL to
+  another origin, so the naive check turns sign-in into an open redirect — one
+  that runs a genuine login first, which is what makes it convincing.
 
 ## Legacy prototype
 

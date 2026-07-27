@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { safeNextPath } from "@/lib/safe-next";
 
 const PUBLIC_PATHS = ["/signin", "/signup", "/forgot-password", "/reset-password"];
 
@@ -18,8 +19,16 @@ export default auth((request) => {
 
   if (!signedIn && !isApi && !isPublic) {
     const url = new URL("/signin", request.nextUrl);
-    // Preserve where they were headed so sign-in can return them there.
-    if (pathname !== "/") url.searchParams.set("next", pathname);
+    /**
+     * The query string comes too, not just the path.
+     *
+     * `/invite?token=…` is the whole reason: sending only the pathname dropped
+     * the token before sign-in, so anyone following an invite while signed out
+     * arrived at an invite page with nothing to redeem. The token is the
+     * message; the path is just where to deliver it.
+     */
+    const next = safeNextPath(`${pathname}${request.nextUrl.search}`);
+    if (next && next !== "/") url.searchParams.set("next", next);
     return NextResponse.redirect(url);
   }
 
