@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError, z } from "zod";
+import { appLink } from "@/lib/server/app-url";
 import { getStore } from "@/lib/server/get-store";
 import { sendPasswordResetEmail } from "@/lib/server/email";
 import {
@@ -44,11 +45,11 @@ export async function POST(request: Request) {
     const user = await store.setPasswordResetToken(email, hashToken(token), resetTokenExpiry());
 
     if (user) {
-      const origin = new URL(request.url).origin;
       await sendPasswordResetEmail({
         to: user.email,
         name: user.name.split(" ")[0] ?? "there",
-        resetUrl: `${origin}/reset-password?token=${encodeURIComponent(token)}`,
+        // Not the request's origin — see lib/server/app-url.ts.
+        resetUrl: appLink(`/reset-password?token=${encodeURIComponent(token)}`, request),
         expiresInMinutes: RESET_TOKEN_TTL_MS / 60_000,
       });
     }

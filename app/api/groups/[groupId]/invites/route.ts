@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { appLink } from "@/lib/server/app-url";
 import { sendGroupInviteEmail } from "@/lib/server/email";
 import { generateResetToken, hashToken } from "@/lib/server/password-reset";
 import { withAuthParamsBody } from "@/lib/server/route-helpers";
@@ -42,7 +43,9 @@ export const POST = withAuthParamsBody<{ groupId: string }, typeof schema, Group
       to: email,
       inviterName: inviter?.name ?? "Someone",
       groupName: group?.name ?? "a group",
-      inviteUrl: `${new URL(request.url).origin}/invite?token=${encodeURIComponent(token)}`,
+      // Not the request's origin: an invite sent from a dev server would
+      // arrive as a link only the sender can open. See lib/server/app-url.ts.
+      inviteUrl: appLink(`/invite?token=${encodeURIComponent(token)}`, request),
       expiresInDays: INVITE_TTL_DAYS,
     });
 

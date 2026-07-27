@@ -42,6 +42,16 @@ const serverSchema = z.object({
   // Phase: authentication
   AUTH_SECRET: optionalString,
   AUTH_URL: optionalUrl,
+
+  /**
+   * The public origin used in emailed links (invites, password resets).
+   *
+   * Separate from AUTH_URL on purpose: AUTH_URL tells Auth.js where it is
+   * running and is best left unset on Vercel, where it is auto-detected. This
+   * one is about where a *recipient* should be sent, which is always the
+   * production domain even when the mail was triggered from somewhere else.
+   */
+  APP_URL: optionalUrl,
   GOOGLE_CLIENT_ID: optionalString,
   GOOGLE_CLIENT_SECRET: optionalString,
 
