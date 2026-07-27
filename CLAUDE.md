@@ -83,7 +83,7 @@ Tests need no running database — `tests/mongo-store.test.ts` starts a real
   token with no `iat` fails closed: it can't be shown to be new enough.
 - **Side channels never fail the transaction.** `lib/server/email.ts` and the
   Redis path in `rate-limit.ts` both return rather than throw. A settlement that
-  was genuinely recorded must not roll back because Resend was down, and a
+  was genuinely recorded must not roll back because Brevo was down, and a
   Redis hiccup must not lock every user out of sign-in — the limiter falls back
   to per-process counters, which is weaker than the shared count but stronger
   than no limit at all. Failing closed on a dependency turns its outage into a
@@ -124,7 +124,14 @@ The neobrutalist look (thick borders, hard offset shadows, lime/yellow/pink/purp
 
 Anything needing a credential is feature-flagged in `lib/env.ts` and surfaces in the UI as an explicit "needs credentials" state rather than a broken control. When enabling one, flip it in `lib/env.ts`, not at the call site.
 
-Still deferred: Google OAuth, email (Resend), blob storage, Sentry.
+Still deferred: blob storage (receipt attachments).
+
+Email is Brevo, chosen because it verifies a single sender address rather than
+a whole domain — a password reset has to reach someone other than the account
+owner, and Resend's domain-only verification made that impossible without
+buying a domain. Brevo's IP restriction must stay **off**: serverless egress
+addresses are dynamic, so there is nothing to allowlist and every send from
+production would 401.
 
 AI narratives are optional rather than deferred: set `AI_BASE_URL` + `AI_MODEL` to any OpenAI-compatible server (Ollama locally needs no key). Everything degrades to the deterministic insights when it's absent or failing.
 

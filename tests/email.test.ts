@@ -8,8 +8,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
  * and a provider outage costs a message rather than a payment record.
  */
 const envMock = {
-  RESEND_API_KEY: "re_test_key" as string | undefined,
-  EMAIL_FROM: "onboarding@resend.dev" as string | undefined,
+  BREVO_API_KEY: "xkeysib-test-key" as string | undefined,
+  EMAIL_FROM: "sender@example.com" as string | undefined,
 };
 const featuresMock = { email: true };
 
@@ -30,8 +30,8 @@ const MESSAGE = { to: "payee@example.com", subject: "Subject", text: "Body" };
 const ok = () => new Response(JSON.stringify({ id: "abc" }), { status: 200 });
 
 beforeEach(() => {
-  envMock.RESEND_API_KEY = "re_test_key";
-  envMock.EMAIL_FROM = "onboarding@resend.dev";
+  envMock.BREVO_API_KEY = "xkeysib-test-key";
+  envMock.EMAIL_FROM = "sender@example.com";
   featuresMock.email = true;
   vi.restoreAllMocks();
   vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -54,18 +54,21 @@ describe("configuration gate", () => {
 });
 
 describe("sending", () => {
-  it("posts to Resend with the configured sender", async () => {
+  it("posts to Brevo with the configured sender", async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok());
     vi.stubGlobal("fetch", fetchMock);
 
     expect(await sendEmail(MESSAGE)).toBe(true);
 
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("https://api.resend.com/emails");
-    expect(init.headers.Authorization).toBe("Bearer re_test_key");
+    expect(url).toBe("https://api.brevo.com/v3/smtp/email");
+    // Brevo authenticates with an `api-key` header, not a bearer token.
+    expect(init.headers["api-key"]).toBe("xkeysib-test-key");
+
     const body = JSON.parse(init.body);
-    expect(body.from).toBe("onboarding@resend.dev");
-    expect(body.to).toEqual(["payee@example.com"]);
+    expect(body.sender.email).toBe("sender@example.com");
+    expect(body.to).toEqual([{ email: "payee@example.com" }]);
+    expect(body.textContent).toBe("Body");
   });
 });
 
@@ -80,23 +83,25 @@ describe("failures never propagate", () => {
     await expect(sendEmail(MESSAGE)).resolves.toBe(false);
   });
 
-  it("names the unverified-domain case, which is the common 403", async () => {
+  it("names the unverified-sender case, which is the common 400", async () => {
+    // Brevo only sends from an address it has confirmed; anything else 400s,
+    // and that reads as "email is broken" until you know what it means.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 403 })));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 400 })));
 
     await sendEmail(MESSAGE);
-    expect(String(warn.mock.calls[0]?.[0])).toMatch(/domain is verified/i);
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/verified sender/i);
   });
 
   it("does not log the provider's response body", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(new Response("token re_LEAKED_SECRET invalid", { status: 401 }))
+      vi.fn().mockResolvedValue(new Response("key xkeysib-LEAKED invalid", { status: 401 }))
     );
 
     await sendEmail(MESSAGE);
-    expect(JSON.stringify(warn.mock.calls)).not.toContain("re_LEAKED_SECRET");
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("xkeysib-LEAKED");
   });
 
   it("gives up rather than holding the request open", async () => {
@@ -133,8 +138,8 @@ describe("the settlement request email", () => {
     expect(body.subject).toContain("Jordan");
     expect(body.subject).toContain("₹500.00");
     // Escrow is the whole point — the recipient must know nothing has changed.
-    expect(body.text).toMatch(/nothing moves until you confirm/i);
-    expect(body.text).toContain("Lunch Crew");
+    expect(body.textContent).toMatch(/nothing moves until you confirm/i);
+    expect(body.textContent).toContain("Lunch Crew");
   });
 
   it("tells the recipient what declining does", async () => {
@@ -148,6 +153,6 @@ describe("the settlement request email", () => {
       groupName: "Lunch Crew",
     });
 
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body).text).toMatch(/decline/i);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).textContent).toMatch(/decline/i);
   });
 });

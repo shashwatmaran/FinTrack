@@ -3,11 +3,17 @@ import "server-only";
 import { env, features } from "@/lib/env";
 
 /**
- * Minimal Resend client.
+ * Minimal Brevo client.
+ *
+ * Brevo rather than Resend because it verifies a *single sender address*
+ * instead of a whole domain. Resend only verifies domains, which meant every
+ * recipient except the account owner came back 403 — fine for a demo, useless
+ * for a password reset, which is the one flow that must reach somebody else.
  *
  * Not the vendor SDK, for the same reason `lib/ai/client.ts` and
  * `lib/server/redis.ts` aren't: the surface used here is one POST with a JSON
- * body, and any transactional provider could replace it.
+ * body, and swapping providers is this file and two env vars — which is
+ * exactly what happened.
  *
  * **Nothing here ever throws.** Email is a notification channel, not a
  * transaction — a provider outage must not roll back a settlement that was
@@ -31,34 +37,35 @@ export async function sendEmail(message: EmailMessage, timeoutMs = 5000): Promis
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch("https://api.resend.com/emails", {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       signal: controller.signal,
       headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        "api-key": env.BREVO_API_KEY ?? "",
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify({
-        from: env.EMAIL_FROM,
-        to: [message.to],
+        sender: { email: env.EMAIL_FROM, name: "FinTrack" },
+        to: [{ email: message.to }],
         subject: message.subject,
-        text: message.text,
+        textContent: message.text,
       }),
     });
 
     if (!response.ok) {
       /**
-       * The recipient address is logged, the body is not.
+       * The recipient address and the status are logged; the body is not.
        *
-       * Resend's most common rejection is worth naming plainly: with no
-       * verified domain it only delivers to the address the account was
-       * created with, so every other recipient comes back 403. That reads as
-       * "email is broken" until you know it is a domain-verification step.
+       * Brevo's usual rejection is worth naming, because it reads as "email is
+       * broken" until you know what it means: a 400 here almost always means
+       * EMAIL_FROM is not the address verified on the account. Brevo will only
+       * send from a sender it has confirmed.
        */
       console.warn(
         `[fintrack] email to ${message.to} rejected with ${response.status}` +
-          (response.status === 403
-            ? " — Resend only delivers to the account owner until a domain is verified"
+          (response.status === 400
+            ? ` — is EMAIL_FROM (${env.EMAIL_FROM}) a verified sender on the Brevo account?`
             : "")
       );
       return false;

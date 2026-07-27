@@ -55,8 +55,14 @@ const serverSchema = z.object({
   GOOGLE_CLIENT_ID: optionalString,
   GOOGLE_CLIENT_SECRET: optionalString,
 
-  // Phase: notifications
-  RESEND_API_KEY: optionalString,
+  /**
+   * Phase: notifications.
+   *
+   * Brevo, not Resend: it verifies a single sender address rather than a whole
+   * domain, so password reset can reach someone other than the account owner
+   * without owning a domain. `EMAIL_FROM` must be that verified address.
+   */
+  BREVO_API_KEY: optionalString,
   EMAIL_FROM: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     z.string().email().optional()
@@ -117,7 +123,7 @@ export const features = {
   database: Boolean(env.MONGODB_URI),
   auth: Boolean(env.AUTH_SECRET && env.MONGODB_URI),
   oauthGoogle: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
-  email: Boolean(env.RESEND_API_KEY && env.EMAIL_FROM),
+  email: Boolean(env.BREVO_API_KEY && env.EMAIL_FROM),
   // No API key in the condition on purpose — a local Ollama server needs none.
   aiInsights: Boolean(env.AI_BASE_URL && env.AI_MODEL),
   blobStorage: Boolean(env.BLOB_READ_WRITE_TOKEN),
