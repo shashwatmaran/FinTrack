@@ -120,10 +120,6 @@ export function ProfileView() {
           >
             <Pill className="bg-ft-line">₹ INR</Pill>
           </Row>
-          <div className="h-[1.5px] bg-ft-line" />
-          <Row title="Theme" description="Dark mode coming soon">
-            <Pill className="bg-ft-line">Light</Pill>
-          </Row>
         </div>
       </Card>
 

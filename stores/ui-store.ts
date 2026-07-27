@@ -7,8 +7,7 @@ export type ModalKind =
   | { type: "create-group" }
   | { type: "expense-detail"; expenseId: string }
   | { type: "settle-up"; toUserId?: string; groupId?: string }
-  | { type: "invite" }
-  | { type: "export" }
+  | { type: "invite"; groupId?: string }
   | { type: "change-password" };
 
 interface UiState {

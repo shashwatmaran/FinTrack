@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 
-const PUBLIC_PATHS = ["/signin", "/signup", "/forgot-password"];
+const PUBLIC_PATHS = ["/signin", "/signup", "/forgot-password", "/reset-password"];
 
 /**
  * Route protection, server-side. Previously the shell redirected after
@@ -45,6 +45,8 @@ export const config = {
    *   api/signup — account creation
    *   api/cron   — Vercel Cron, which presents a bearer secret, not a cookie;
    *                the route enforces that itself
+   *   api/password — reset request and reset submit. Both are for someone who
+   *                cannot sign in, so a session requirement would be circular.
    *   api/health — deployment diagnostic. It has to answer when auth is the
    *                broken thing, so requiring a session would make it useless
    *                in precisely the case it exists for.
@@ -53,6 +55,6 @@ export const config = {
    *                a sign-in error is exactly the kind worth hearing about.
    */
   matcher: [
-    "/((?!api/auth|api/signup|api/cron|api/health|monitoring|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api/auth|api/signup|api/cron|api/health|api/password|monitoring|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

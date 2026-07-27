@@ -9,6 +9,8 @@ import { ForbiddenError, NotFoundError, ValidationError, type DataStore } from "
 export interface RouteContext {
   userId: string;
   store: DataStore;
+  /** For handlers that need the deployment's own origin, e.g. to build a link. */
+  request: Request;
 }
 
 function errorResponse(status: number, message: string) {
@@ -22,13 +24,13 @@ function errorResponse(status: number, message: string) {
  * write an endpoint that forgets to scope its query.
  */
 export function withAuth<T>(handler: (ctx: RouteContext) => Promise<T>) {
-  return async (): Promise<NextResponse> => {
+  return async (request: Request): Promise<NextResponse> => {
     try {
       const session = await auth();
       if (!session?.user?.id) return errorResponse(401, "Not signed in");
 
       const store = await getStore();
-      const data = await handler({ userId: session.user.id, store });
+      const data = await handler({ userId: session.user.id, store, request });
       return NextResponse.json(data);
     } catch (error) {
       return mapError(error);
@@ -50,7 +52,7 @@ export function withAuthBody<S extends ZodType, T>(
       const body = schema.parse(json);
 
       const store = await getStore();
-      const data = await handler(body, { userId: session.user.id, store });
+      const data = await handler(body, { userId: session.user.id, store, request });
       return NextResponse.json(data);
     } catch (error) {
       return mapError(error);
@@ -65,14 +67,14 @@ export function withAuthBody<S extends ZodType, T>(
 export function withAuthParams<P extends Record<string, string>, T>(
   handler: (params: P, ctx: RouteContext) => Promise<T>
 ) {
-  return async (_request: Request, segment: { params: Promise<P> }): Promise<NextResponse> => {
+  return async (request: Request, segment: { params: Promise<P> }): Promise<NextResponse> => {
     try {
       const session = await auth();
       if (!session?.user?.id) return errorResponse(401, "Not signed in");
 
       const params = await segment.params;
       const store = await getStore();
-      const data = await handler(params, { userId: session.user.id, store });
+      const data = await handler(params, { userId: session.user.id, store, request });
       return NextResponse.json(data);
     } catch (error) {
       return mapError(error);
@@ -95,7 +97,7 @@ export function withAuthParamsBody<P extends Record<string, string>, S extends Z
       const body = schema.parse(json);
 
       const store = await getStore();
-      const data = await handler(params, body, { userId: session.user.id, store });
+      const data = await handler(params, body, { userId: session.user.id, store, request });
       return NextResponse.json(data);
     } catch (error) {
       return mapError(error);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Download, Plus, Receipt, RefreshCw } from "lucide-react";
+import { Plus, Receipt, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ExpenseRow } from "@/components/expenses/expense-row";
 import { EmptyState } from "@/components/common/empty-state";
@@ -75,10 +75,6 @@ export function ExpensesView() {
           ))}
         </div>
         <div className="flex gap-2.5">
-          <Button variant="secondary" onClick={() => openModal({ type: "export" })}>
-            <Download size={16} strokeWidth={2.4} />
-            Export
-          </Button>
           <Button onClick={() => openModal({ type: "add-expense" })}>
             <Plus size={16} strokeWidth={3} />
             Add Expense

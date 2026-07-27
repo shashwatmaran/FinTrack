@@ -10,11 +10,26 @@ export const signInSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+/** One definition of "an acceptable password", used by signup and by reset. */
+export const passwordSchema = z.string().min(8, "At least 8 characters").max(200);
+
 export const signUpSchema = z.object({
   name: z.string().trim().min(2, "Tell us your name").max(80),
   email: z.string().min(1, "Email is required").email("Enter a valid email"),
-  password: z.string().min(8, "At least 8 characters").max(200),
+  password: passwordSchema,
 });
+
+export const resetPasswordSchema = z
+  .object({
+    password: passwordSchema,
+    confirm: z.string(),
+  })
+  .refine((v) => v.password === v.confirm, {
+    message: "Passwords don't match",
+    path: ["confirm"],
+  });
+
+export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>;
 
 const categories = [
   "food",

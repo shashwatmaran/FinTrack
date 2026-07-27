@@ -3,12 +3,12 @@ import "server-only";
 import bcrypt from "bcryptjs";
 import { MongoServerError } from "mongodb";
 import { equalSplit } from "@/lib/balances";
-import { collections, type ActivityDoc, type ExpenseDoc, type GroupDoc, type NotificationDoc, type SettlementDoc, type UserDoc } from "@/lib/db/collections";
+import { collections, type ActivityDoc, type ExpenseDoc, type GroupDoc, type InviteDoc, type NotificationDoc, type SettlementDoc, type UserDoc } from "@/lib/db/collections";
 import { ensureIndexes } from "@/lib/db/indexes";
 import { formatCurrency, initials as toInitials } from "@/lib/format";
 import { dueOccurrences } from "@/lib/recurring";
 import { sendSettlementRequestEmail } from "./email";
-import type { AccentToken, ActivityItem, AppUser, Expense, Group, NotificationItem, Settlement } from "@/lib/types";
+import type { AccentToken, ActivityItem, AppUser, Expense, Group, GroupInvite, NotificationItem, Settlement } from "@/lib/types";
 import {
   ForbiddenError,
   NotFoundError,
@@ -34,6 +34,19 @@ async function db() {
 
 function toUser(doc: UserDoc): AppUser {
   return { id: doc._id, name: doc.name, email: doc.email, initials: doc.initials, color: doc.color };
+}
+
+/** Drops `tokenHash` — the invite is returned to a client, the hash is not. */
+function toInvite(doc: InviteDoc): GroupInvite {
+  return {
+    id: doc._id,
+    groupId: doc.groupId,
+    email: doc.email,
+    invitedBy: doc.invitedBy,
+    status: doc.status,
+    createdAt: doc.createdAt,
+    expiresAt: doc.expiresAt,
+  };
 }
 
 function toGroup(doc: GroupDoc): Group {
@@ -174,6 +187,36 @@ export const mongoStore: DataStore = {
     return toUser(doc);
   },
 
+  async setPasswordResetToken(email, tokenHash, expiresAt) {
+    const { users } = await db();
+    // Overwrites any previous token, so requesting a new link invalidates the
+    // old one rather than leaving several valid at once.
+    const doc = await users.findOneAndUpdate(
+      { email: email.toLowerCase() },
+      { $set: { resetTokenHash: tokenHash, resetTokenExpiresAt: expiresAt } },
+      { returnDocument: "after" }
+    );
+    return doc ? toUser(doc) : null;
+  },
+
+  async consumePasswordReset(tokenHash, newPassword) {
+    const { users } = await db();
+    /**
+     * Expiry is part of the match, not a check afterwards, and the token is
+     * cleared in the same operation. Two requests racing with one token means
+     * only the first matches — the second finds nothing to update.
+     */
+    const updated = await users.findOneAndUpdate(
+      { resetTokenHash: tokenHash, resetTokenExpiresAt: { $gt: new Date().toISOString() } },
+      {
+        $set: { passwordHash: await bcrypt.hash(newPassword, 10) },
+        $unset: { resetTokenHash: "", resetTokenExpiresAt: "" },
+      },
+      { returnDocument: "after" }
+    );
+    return Boolean(updated);
+  },
+
   async getVisibleUsers(actorId) {
     const { groups, users } = await db();
     const memberGroups = await groups
@@ -211,6 +254,51 @@ export const mongoStore: DataStore = {
     await groups.insertOne(doc);
     await recordActivity(doc._id, actorId, `You created **${doc.name}**`);
     return toGroup(doc);
+  },
+
+  async createGroupInvite(actorId, input) {
+    const { invites } = await db();
+    // Membership is the authorization: an invite exposes everyone's balances
+    // in that group, so only someone already inside may hand one out.
+    const group = await requireMembership(actorId, input.groupId);
+
+    const doc: InviteDoc = {
+      _id: nextId("i"),
+      groupId: group._id,
+      email: input.email.toLowerCase(),
+      invitedBy: actorId,
+      tokenHash: input.tokenHash,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      expiresAt: input.expiresAt,
+    };
+    await invites.insertOne(doc);
+    return toInvite(doc);
+  },
+
+  async acceptGroupInvite(actorId, tokenHash) {
+    const { invites, groups } = await db();
+    const invite = await invites.findOne({ tokenHash });
+
+    // Unknown, expired and spent are one answer on purpose — telling them
+    // apart would let a used token confirm that a group exists.
+    if (!invite || invite.expiresAt <= new Date().toISOString()) {
+      throw new ValidationError("That invite link is no longer valid");
+    }
+
+    const group = await groups.findOne({ _id: invite.groupId });
+    if (!group) throw new ValidationError("That invite link is no longer valid");
+
+    // Already a member: succeed without adding a duplicate, so following the
+    // link twice is harmless rather than an error the user cannot act on.
+    if (!group.memberIds.includes(actorId)) {
+      await groups.updateOne({ _id: group._id }, { $addToSet: { memberIds: actorId } });
+      await recordActivity(group._id, actorId, `You joined **${group.name}**`);
+    }
+    await invites.updateOne({ _id: invite._id }, { $set: { status: "accepted" } });
+
+    const updated = await groups.findOne({ _id: group._id });
+    return toGroup(updated ?? group);
   },
 
   async getExpenses(actorId) {

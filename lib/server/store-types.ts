@@ -4,6 +4,7 @@ import type {
   Expense,
   ExpenseCategory,
   Group,
+  GroupInvite,
   GroupType,
   NotificationItem,
   Settlement,
@@ -39,6 +40,13 @@ export interface CreateUserInput {
   password: string;
 }
 
+export interface CreateInviteInput {
+  groupId: string;
+  email: string;
+  tokenHash: string;
+  expiresAt: string;
+}
+
 /**
  * The contract every read and write in the app goes through. Two
  * implementations exist: MongoDB when MONGODB_URI is configured, and an
@@ -54,11 +62,50 @@ export interface DataStore {
   getUserByEmail(email: string): Promise<(AppUser & { passwordHash?: string }) | null>;
   createUser(input: CreateUserInput): Promise<AppUser>;
 
+  /**
+   * Password reset. Both methods are unauthenticated by nature — the caller is
+   * someone who cannot sign in — so neither takes an acting user. Like
+   * `materializeRecurring`, that makes the calling route the only boundary,
+   * and `/api/password/*` is the only place either may be reached from.
+   *
+   * The store never sees the token itself, only a hash of it. A database dump
+   * must not be enough to take over an account.
+   */
+  setPasswordResetToken(
+    email: string,
+    tokenHash: string,
+    expiresAt: string
+  ): Promise<AppUser | null>;
+
+  /**
+   * Consumes a reset token and sets the new password. Returns false when the
+   * token is unknown, expired, or already used — the caller cannot tell which,
+   * and neither can the user.
+   */
+  consumePasswordReset(tokenHash: string, newPassword: string): Promise<boolean>;
+
   /** Everyone who shares at least one group with `actorId`, plus the actor. */
   getVisibleUsers(actorId: string): Promise<AppUser[]>;
 
   getGroups(actorId: string): Promise<Group[]>;
   createGroup(actorId: string, input: CreateGroupInput): Promise<Group>;
+
+  /**
+   * Invites someone to a group. Only a member may invite, since an invite hands
+   * out visibility of everyone else's balances in that group.
+   *
+   * As with password resets the store receives only the token's hash.
+   */
+  createGroupInvite(actorId: string, input: CreateInviteInput): Promise<GroupInvite>;
+
+  /**
+   * Redeems an invite for the acting user, who must already have an account.
+   *
+   * Throws `ValidationError` when the token is unknown, expired or spent — the
+   * three are not distinguished, so a spent token cannot be used to probe which
+   * groups exist. Redeeming twice is a no-op that still returns the group.
+   */
+  acceptGroupInvite(actorId: string, tokenHash: string): Promise<Group>;
 
   getExpenses(actorId: string): Promise<Expense[]>;
   createExpense(actorId: string, input: CreateExpenseInput): Promise<Expense>;

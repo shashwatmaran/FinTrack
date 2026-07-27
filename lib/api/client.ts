@@ -4,6 +4,7 @@ import type {
   BootstrapData,
   Expense,
   Group,
+  GroupInvite,
   NotificationItem,
   Settlement,
 } from "@/lib/types";
@@ -95,4 +96,14 @@ export const api = {
 
   signUp: (body: { name: string; email: string; password: string }) =>
     request<{ id: string; email: string }>("/signup", { method: "POST", body: json(body) }),
+
+  inviteToGroup: (groupId: string, email: string) =>
+    request<GroupInvite>(`/groups/${groupId}/invites`, { method: "POST", body: json({ email }) }),
+  acceptInvite: (token: string) =>
+    request<Group>("/invites/accept", { method: "POST", body: json({ token }) }),
+
+  requestPasswordReset: (email: string) =>
+    request<{ ok: true }>("/password/forgot", { method: "POST", body: json({ email }) }),
+  resetPassword: (token: string, password: string) =>
+    request<{ ok: true }>("/password/reset", { method: "POST", body: json({ token, password }) }),
 };

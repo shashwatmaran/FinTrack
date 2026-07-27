@@ -73,6 +73,172 @@ export function runStoreContract(harness: StoreHarness) {
       });
     });
 
+    describe("password reset", () => {
+      const HASH = "a".repeat(64);
+      const future = () => new Date(Date.now() + 60_000).toISOString();
+      const past = () => new Date(Date.now() - 60_000).toISOString();
+
+      it("records a token against a known address", async () => {
+        const user = await store.setPasswordResetToken(
+          "maya.alvarez@email.com",
+          HASH,
+          future()
+        );
+        expect(user?.id).toBe(DEMO);
+      });
+
+      it("matches the address case-insensitively", async () => {
+        expect(
+          await store.setPasswordResetToken("MAYA.ALVAREZ@EMAIL.COM", HASH, future())
+        ).toBeTruthy();
+      });
+
+      it("returns null for an unknown address rather than throwing", async () => {
+        // The route answers identically either way; it needs a value, not an
+        // exception, to do that.
+        expect(await store.setPasswordResetToken("nobody@example.com", HASH, future())).toBeNull();
+      });
+
+      it("never exposes the token hash on the returned user", async () => {
+        const user = await store.setPasswordResetToken("maya.alvarez@email.com", HASH, future());
+        expect(JSON.stringify(user)).not.toContain(HASH);
+      });
+
+      it("sets the new password when the token is valid", async () => {
+        await store.setPasswordResetToken("maya.alvarez@email.com", HASH, future());
+        expect(await store.consumePasswordReset(HASH, "brand-new-password")).toBe(true);
+
+        const user = await store.getUserByEmail("maya.alvarez@email.com");
+        expect(user?.passwordHash).toMatch(/^\$2[aby]\$/);
+        expect(user?.passwordHash).not.toContain("brand-new-password");
+      });
+
+      it("refuses a token that has already been used", async () => {
+        await store.setPasswordResetToken("maya.alvarez@email.com", HASH, future());
+        await store.consumePasswordReset(HASH, "first-password");
+
+        expect(await store.consumePasswordReset(HASH, "second-password")).toBe(false);
+      });
+
+      it("refuses an expired token", async () => {
+        await store.setPasswordResetToken("maya.alvarez@email.com", HASH, past());
+        expect(await store.consumePasswordReset(HASH, "too-late-password")).toBe(false);
+      });
+
+      it("refuses a token nobody issued", async () => {
+        expect(await store.consumePasswordReset("b".repeat(64), "whatever1")).toBe(false);
+      });
+
+      it("leaves the old password working when the token is rejected", async () => {
+        const before = (await store.getUserByEmail("maya.alvarez@email.com"))?.passwordHash;
+        await store.consumePasswordReset("c".repeat(64), "attacker-password");
+
+        const after = (await store.getUserByEmail("maya.alvarez@email.com"))?.passwordHash;
+        expect(after).toBe(before);
+      });
+
+      it("invalidates an earlier token when a new one is requested", async () => {
+        const first = "d".repeat(64);
+        await store.setPasswordResetToken("maya.alvarez@email.com", first, future());
+        await store.setPasswordResetToken("maya.alvarez@email.com", HASH, future());
+
+        expect(await store.consumePasswordReset(first, "from-old-link")).toBe(false);
+        expect(await store.consumePasswordReset(HASH, "from-new-link")).toBe(true);
+      });
+    });
+
+    describe("group invites", () => {
+      const HASH = "e".repeat(64);
+      const future = () => new Date(Date.now() + 60_000).toISOString();
+      const past = () => new Date(Date.now() - 60_000).toISOString();
+
+      const invite = (actor: string, groupId: string, tokenHash = HASH, expiresAt = future()) =>
+        store.createGroupInvite(actor, {
+          groupId,
+          email: "newcomer@example.com",
+          tokenHash,
+          expiresAt,
+        });
+
+      it("lets a member invite someone", async () => {
+        const created = await invite(DEMO, "g1");
+        expect(created.groupId).toBe("g1");
+        expect(created.status).toBe("pending");
+      });
+
+      it("normalises the invited address", async () => {
+        const created = await store.createGroupInvite(DEMO, {
+          groupId: "g1",
+          email: "New.Comer@Example.COM",
+          tokenHash: HASH,
+          expiresAt: future(),
+        });
+        expect(created.email).toBe("new.comer@example.com");
+      });
+
+      it("never returns the token hash", async () => {
+        expect(JSON.stringify(await invite(DEMO, "g1"))).not.toContain(HASH);
+      });
+
+      it("refuses to let a non-member invite", async () => {
+        // An invite grants sight of everyone's balances in that group.
+        await expect(invite(OTHER, STRANGER_GROUP)).rejects.toThrow();
+      });
+
+      it("refuses an invite to a group that does not exist", async () => {
+        await expect(invite(DEMO, "nope")).rejects.toThrow();
+      });
+
+      it("adds the accepting user to the group", async () => {
+        const newcomer = await store.createUser({
+          name: "New Comer",
+          email: "newcomer@example.com",
+          password: "supersecret1",
+        });
+        await invite(DEMO, STRANGER_GROUP);
+
+        const group = await store.acceptGroupInvite(newcomer.id, HASH);
+        expect(group.memberIds).toContain(newcomer.id);
+
+        // And the group is now genuinely visible to them.
+        const theirGroups = await store.getGroups(newcomer.id);
+        expect(theirGroups.map((g) => g.id)).toContain(STRANGER_GROUP);
+      });
+
+      it("is idempotent when the link is followed twice", async () => {
+        const newcomer = await store.createUser({
+          name: "New Comer",
+          email: "newcomer@example.com",
+          password: "supersecret1",
+        });
+        await invite(DEMO, STRANGER_GROUP);
+
+        await store.acceptGroupInvite(newcomer.id, HASH);
+        const again = await store.acceptGroupInvite(newcomer.id, HASH);
+
+        expect(again.memberIds.filter((id) => id === newcomer.id)).toHaveLength(1);
+      });
+
+      it("refuses an expired invite", async () => {
+        await invite(DEMO, STRANGER_GROUP, HASH, past());
+        await expect(store.acceptGroupInvite(OTHER, HASH)).rejects.toThrow(/no longer valid/i);
+      });
+
+      it("refuses a token nobody issued", async () => {
+        await expect(store.acceptGroupInvite(OTHER, "f".repeat(64))).rejects.toThrow(
+          /no longer valid/i
+        );
+      });
+
+      it("does not add anyone to the group when the invite is rejected", async () => {
+        const before = (await store.getGroups(DEMO)).find((g) => g.id === STRANGER_GROUP);
+        await store.acceptGroupInvite(OTHER, "f".repeat(64)).catch(() => {});
+
+        const after = (await store.getGroups(DEMO)).find((g) => g.id === STRANGER_GROUP);
+        expect(after?.memberIds).toEqual(before?.memberIds);
+      });
+    });
+
     describe("visibility scoping", () => {
       it("shows only people who share a group with you", async () => {
         const visible = await store.getVisibleUsers(DEMO);

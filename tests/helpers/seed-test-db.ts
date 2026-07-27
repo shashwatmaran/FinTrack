@@ -11,6 +11,14 @@ import {
   USERS,
 } from "@/lib/mock-data";
 
+/**
+ * Every collection the app writes to, not just the seeded ones.
+ *
+ * A collection missing here leaks state between cases, and the failure is
+ * confusing rather than obvious: `invites` was absent, so a lookup by token
+ * hash matched an invite left behind by an earlier test and the contract
+ * reported drift between the two stores that did not exist.
+ */
 const COLLECTIONS = [
   "users",
   "groups",
@@ -18,6 +26,8 @@ const COLLECTIONS = [
   "settlements",
   "notifications",
   "activity",
+  "narratives",
+  "invites",
 ] as const;
 
 // Hashing is the slowest thing in the suite; do it once for the whole run.

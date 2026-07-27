@@ -15,7 +15,7 @@ import {
 import { formatCurrency, initials as toInitials } from "@/lib/format";
 import { dueOccurrences } from "@/lib/recurring";
 import { sendSettlementRequestEmail } from "./email";
-import type { AccentToken, ActivityItem, AppUser, Expense, Group, NotificationItem, Settlement } from "@/lib/types";
+import type { AccentToken, ActivityItem, AppUser, Expense, Group, GroupInvite, NotificationItem, Settlement } from "@/lib/types";
 import {
   ForbiddenError,
   NotFoundError,
@@ -32,14 +32,22 @@ import {
  * globalThis so it survives Next.js hot reloads in development; it is still
  * per-process, so it is a development convenience, not a production mode.
  */
+/** Mirrors the reset fields on `UserDoc`; the token itself is never stored. */
+interface StoredUser extends AppUser {
+  passwordHash?: string;
+  resetTokenHash?: string;
+  resetTokenExpiresAt?: string;
+}
+
 interface MemoryState {
-  users: (AppUser & { passwordHash?: string })[];
+  users: StoredUser[];
   groups: Group[];
   expenses: Expense[];
   settlements: Settlement[];
   notifications: (NotificationItem & { userId: string })[];
   activity: ActivityItem[];
   narratives: Map<string, StoredNarrative>;
+  invites: (GroupInvite & { tokenHash: string })[];
 }
 
 declare global {
@@ -58,6 +66,7 @@ function seed(): MemoryState {
     notifications: NOTIFICATIONS.map((n) => ({ ...n, userId: DEMO_USER_ID })),
     activity: ACTIVITY.map((a) => ({ ...a })),
     narratives: new Map(),
+    invites: [],
   };
 }
 
@@ -72,8 +81,13 @@ function nextId(prefix: string) {
 
 const PALETTE: AccentToken[] = ["ft-lime", "ft-sky", "ft-pink", "ft-purple", "ft-yellow"];
 
-function stripSecrets(user: AppUser & { passwordHash?: string }): AppUser {
-  const { passwordHash: _passwordHash, ...safe } = user;
+function stripSecrets(user: StoredUser): AppUser {
+  const {
+    passwordHash: _passwordHash,
+    resetTokenHash: _resetTokenHash,
+    resetTokenExpiresAt: _resetTokenExpiresAt,
+    ...safe
+  } = user;
   return safe;
 }
 
@@ -103,6 +117,30 @@ export const memoryStore: DataStore = {
     };
     s.users.push(user);
     return stripSecrets(user);
+  },
+
+  async setPasswordResetToken(email, tokenHash, expiresAt) {
+    const user = state().users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    if (!user) return null;
+    // Overwrites any previous token, so requesting a new link invalidates the
+    // old one rather than leaving several valid at once.
+    user.resetTokenHash = tokenHash;
+    user.resetTokenExpiresAt = expiresAt;
+    return stripSecrets(user);
+  },
+
+  async consumePasswordReset(tokenHash, newPassword) {
+    const user = state().users.find((u) => u.resetTokenHash === tokenHash);
+    // Expiry is checked before anything is written, and the token is cleared in
+    // the same step — a second attempt with the same token finds nothing.
+    if (!user || !user.resetTokenExpiresAt || user.resetTokenExpiresAt <= new Date().toISOString()) {
+      return false;
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    delete user.resetTokenHash;
+    delete user.resetTokenExpiresAt;
+    return true;
   },
 
   async getVisibleUsers(actorId) {
@@ -139,6 +177,60 @@ export const memoryStore: DataStore = {
       message: `You created **${group.name}**`,
       createdAt: new Date().toISOString(),
     });
+    return { ...group };
+  },
+
+  async createGroupInvite(actorId, input) {
+    const s = state();
+    const group = s.groups.find((g) => g.id === input.groupId);
+    if (!group) throw new NotFoundError("Group not found");
+    // Membership is the authorization: an invite exposes everyone's balances
+    // in that group, so only someone already inside may hand one out.
+    if (!group.memberIds.includes(actorId)) throw new ForbiddenError();
+
+    const invite = {
+      id: nextId("i"),
+      groupId: group.id,
+      email: input.email.toLowerCase(),
+      invitedBy: actorId,
+      status: "pending" as const,
+      createdAt: new Date().toISOString(),
+      expiresAt: input.expiresAt,
+      tokenHash: input.tokenHash,
+    };
+    s.invites.push(invite);
+
+    const { tokenHash: _tokenHash, ...safe } = invite;
+    return safe;
+  },
+
+  async acceptGroupInvite(actorId, tokenHash) {
+    const s = state();
+    const invite = s.invites.find((i) => i.tokenHash === tokenHash);
+
+    // Unknown, expired and spent are one answer on purpose — telling them
+    // apart would let a used token confirm that a group exists.
+    if (!invite || invite.expiresAt <= new Date().toISOString()) {
+      throw new ValidationError("That invite link is no longer valid");
+    }
+
+    const group = s.groups.find((g) => g.id === invite.groupId);
+    if (!group) throw new ValidationError("That invite link is no longer valid");
+
+    // Already a member: succeed without adding a duplicate, so following the
+    // link twice is harmless rather than an error the user cannot act on.
+    if (!group.memberIds.includes(actorId)) {
+      group.memberIds.push(actorId);
+      s.activity.unshift({
+        id: nextId("a"),
+        groupId: group.id,
+        actorId,
+        message: `You joined **${group.name}**`,
+        createdAt: new Date().toISOString(),
+      });
+    }
+    invite.status = "accepted";
+
     return { ...group };
   },
 

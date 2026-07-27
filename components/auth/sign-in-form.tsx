@@ -12,7 +12,7 @@ import { FieldError, Input, Label } from "@/components/ui/input";
 import { signInErrorMessage } from "@/lib/auth-errors";
 import { signInSchema, type SignInValues } from "@/lib/validation";
 
-export function SignInForm() {
+export function SignInForm({ googleEnabled = false }: { googleEnabled?: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [formError, setFormError] = useState<string | null>(null);
@@ -101,15 +101,26 @@ export function SignInForm() {
         <span className="h-0.5 flex-1 bg-ft-ink/25" />
       </div>
 
-      <Button
-        variant="secondary"
-        size="lg"
-        className="w-full"
-        title="Google sign-in needs OAuth client credentials"
-        disabled
-      >
-        Continue with Google — coming soon
-      </Button>
+      {googleEnabled ? (
+        <Button
+          variant="secondary"
+          size="lg"
+          className="w-full"
+          onClick={() => signIn("google", { callbackUrl: searchParams.get("next") ?? "/dashboard" })}
+        >
+          Continue with Google
+        </Button>
+      ) : (
+        <Button
+          variant="secondary"
+          size="lg"
+          className="w-full"
+          title="Google sign-in needs OAuth client credentials"
+          disabled
+        >
+          Continue with Google — not configured
+        </Button>
+      )}
 
       <p className="mt-6 text-center text-[13.5px] font-medium text-ft-muted">
         New here?{" "}

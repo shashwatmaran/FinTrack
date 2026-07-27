@@ -79,6 +79,66 @@ export async function sendEmail(message: EmailMessage, timeoutMs = 5000): Promis
 }
 
 /**
+ * The reset link.
+ *
+ * Sent only to an address that already has an account — the request endpoint
+ * answers identically either way, so silence here is what stops the form from
+ * being an account-existence oracle.
+ */
+export async function sendPasswordResetEmail(params: {
+  to: string;
+  name: string;
+  resetUrl: string;
+  expiresInMinutes: number;
+}): Promise<boolean> {
+  return sendEmail({
+    to: params.to,
+    subject: "Reset your FinTrack password",
+    text: [
+      `Hi ${params.name},`,
+      "",
+      "Use this link to choose a new password:",
+      params.resetUrl,
+      "",
+      `It expires in ${params.expiresInMinutes} minutes and can only be used once.`,
+      "",
+      "If you didn't ask for this, ignore it — your password stays as it is and",
+      "the link stops working on its own.",
+    ].join("\n"),
+  });
+}
+
+/**
+ * A group invitation.
+ *
+ * Names who is inviting and to what, because an unexplained link asking you to
+ * join something about money is indistinguishable from phishing.
+ */
+export async function sendGroupInviteEmail(params: {
+  to: string;
+  inviterName: string;
+  groupName: string;
+  inviteUrl: string;
+  expiresInDays: number;
+}): Promise<boolean> {
+  return sendEmail({
+    to: params.to,
+    subject: `${params.inviterName} invited you to ${params.groupName} on FinTrack`,
+    text: [
+      `${params.inviterName} added you to "${params.groupName}", a shared-expense group.`,
+      "",
+      "Join here:",
+      params.inviteUrl,
+      "",
+      `The link expires in ${params.expiresInDays} days. You'll need a FinTrack`,
+      "account — creating one takes a moment if you don't have one.",
+      "",
+      "Not expecting this? Ignore it. Nothing is shared with you until you join.",
+    ].join("\n"),
+  });
+}
+
+/**
  * The one notification worth an email.
  *
  * A pending settlement is the only event that needs the recipient to *act*,

@@ -84,6 +84,17 @@ export interface NotificationItem {
   createdAt: string;
 }
 
+/** A pending group invitation. The token itself never appears here. */
+export interface GroupInvite {
+  id: string;
+  groupId: string;
+  email: string;
+  invitedBy: string;
+  status: "pending" | "accepted";
+  createdAt: string;
+  expiresAt: string;
+}
+
 /**
  * Everything the signed-in shell needs, in one payload.
  *

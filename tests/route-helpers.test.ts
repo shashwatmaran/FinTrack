@@ -42,11 +42,14 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
+/** Handlers receive the request so they can read the deployment's own origin. */
+const req = () => new Request("http://localhost/api/groups");
+
 describe("withAuth", () => {
   it("401s when there is no session", async () => {
     signedOut();
     const handler = withAuth(async () => ({ ok: true }));
-    const response = await handler();
+    const response = await handler(req());
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "Not signed in" });
@@ -55,20 +58,20 @@ describe("withAuth", () => {
   it("401s when a session exists but carries no user id", async () => {
     authMock.mockResolvedValue({ user: {} });
     const handler = withAuth(async () => ({ ok: true }));
-    expect((await handler()).status).toBe(401);
+    expect((await handler(req())).status).toBe(401);
   });
 
   it("never runs the handler for an unauthenticated caller", async () => {
     signedOut();
     const body = vi.fn().mockResolvedValue({});
-    await withAuth(body)();
+    await withAuth(body)(req());
     expect(body).not.toHaveBeenCalled();
   });
 
   it("passes the resolved userId and store to the handler", async () => {
     signedIn();
     const handler = withAuth(async ({ userId, store }) => ({ userId, store }));
-    const payload = await (await handler()).json();
+    const payload = await (await handler(req())).json();
 
     expect(payload.userId).toBe("u1");
     expect(payload.store).toEqual(storeMock);
@@ -76,7 +79,7 @@ describe("withAuth", () => {
 
   it("returns the handler's value as JSON with a 200", async () => {
     signedIn();
-    const response = await withAuth(async () => [{ id: "g1" }])();
+    const response = await withAuth(async () => [{ id: "g1" }])(req());
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([{ id: "g1" }]);
   });
@@ -94,7 +97,7 @@ describe("error mapping", () => {
       signedIn();
       const response = await withAuth(async () => {
         throw error;
-      })();
+      })(req());
 
       expect(response.status).toBe(status);
       expect((await response.json()).error).toBe(message);
@@ -105,7 +108,7 @@ describe("error mapping", () => {
     signedIn();
     const response = await withAuth(async () => {
       throw new Error("connection string mongodb+srv://user:hunter2@host failed");
-    })();
+    })(req());
 
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: "Something went wrong" });
@@ -115,7 +118,7 @@ describe("error mapping", () => {
     signedIn();
     const response = await withAuth(async () => {
       throw new Error("mongodb+srv://user:hunter2@cluster.mongodb.net");
-    })();
+    })(req());
 
     expect(JSON.stringify(await response.json())).not.toContain("hunter2");
   });

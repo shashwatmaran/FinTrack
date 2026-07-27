@@ -145,7 +145,7 @@ export function InsightsView() {
         })}
       </div>
 
-      <div className="grid items-start gap-4.5 lg:grid-cols-2">
+      <div className="grid items-start gap-4.5">
         <Card>
             <CardTitle className="mb-4">Top categories · this month</CardTitle>
             {categories.length === 0 ? (
@@ -172,13 +172,6 @@ export function InsightsView() {
             )}
           </Card>
 
-        <div className="rounded-xl border-[2.5px] border-ft-ink bg-ft-purple p-5 shadow-neo">
-          <CardTitle className="mb-2">Monthly report</CardTitle>
-          <p className="text-[13.5px] leading-[1.5]">
-            Spending by group, category trends, and a settlement summary — exportable once the
-            reporting job and storage credentials are wired up.
-          </p>
-        </div>
       </div>
     </div>
   );
