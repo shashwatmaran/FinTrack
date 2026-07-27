@@ -373,7 +373,7 @@ Generation runs on read rather than inside the expense write: awaiting a model c
 ## Tests
 
 ```bash
-npm test              # 445 tests, ~10s
+npm test              # 530 tests, ~11s
 npm run test:watch
 npm run test:coverage
 ```
@@ -402,8 +402,12 @@ No database or dev server required — the MongoDB suite starts a real `mongod` 
 | `email.test.ts` | that no delivery failure can propagate into a write |
 | `sign-in-form.test.tsx` | that a failed submit **always** produces visible feedback |
 | `dashboard-view.test.tsx` | empty-vs-loading, onboarding, rupee formatting |
+| `app-url.test.ts` | that an emailed link points where the recipient can reach |
 | `add-expense-modal.test.tsx` | that the split preview matches what is submitted |
 | `group-detail-view.test.tsx` | which way a balance reads, and escrow at the UI layer |
+| `settle-up-modal.test.tsx` | that a logged payment is a claim, and says so |
+| `settlements-view.test.tsx` | that only the payee is offered confirm and dispute |
+| `create-group-modal.test.tsx` | that the members submitted are the members selected |
 
 **The contract suite is the important one.** `memory-store` and `mongo-store` are separate code but only one runs in production, so an authorization rule can silently exist in one and not the other. Both are held to the same 45 assertions. New `DataStore` methods belong there, not in a per-implementation file.
 
@@ -413,7 +417,9 @@ Each rule was verified by breaking it deliberately and confirming the suite fail
 
 The two highest-stakes screens are covered because their bugs are silent. The split form is where money is divided between real people — a preview that disagrees with what gets submitted shows one number and charges another. Group detail states a balance as a sentence, so reversing the sign turns "you're owed ₹500" into "you owe ₹500" while every API response stays correct. Both were verified by breaking them: dropping the rounding remainder, and swapping the balance wording.
 
-Not yet covered: the settle-up and create-group modals, and the settlements view.
+Writing them found a shipped bug: the settle-up form defaulted its payment method to `"Venmo"`, which was not one of the options the dropdown offered — a leftover from the US-facing prototype that survived the move to rupees. Anyone who did not touch the field submitted a method the UI never showed them.
+
+Not yet covered: the activity feed and the expense detail modal.
 
 ## Legacy prototype
 

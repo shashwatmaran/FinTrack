@@ -72,7 +72,10 @@ export function SettleUpModal({
       toUserId: initialToUserId,
       groupId: defaultGroupId ?? match?.groupId ?? myGroups[0]?.id ?? "",
       amount: (match?.amount ?? "") as unknown as number,
-      method: "Venmo",
+      // Must be one of METHODS. A value the dropdown never offered is submitted
+      // silently by anyone who doesn't touch the field — "Venmo" survived here
+      // from the US-facing prototype long after the app became rupees-only.
+      method: METHODS[0],
     },
   });
 
