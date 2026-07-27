@@ -64,6 +64,21 @@ export async function GET() {
       authUrlIsLocalhost,
       aiNarratives: features.aiInsights,
       scheduledJobs: features.scheduledJobs,
+      /**
+       * The remaining integrations, each a plain boolean.
+       *
+       * These exist because "I added the variables" and "the running
+       * deployment has them" are different statements — Vercel bakes env vars
+       * in at build time, so a change without a redeploy leaves the old build
+       * running with the old (absent) values, and every affected feature just
+       * stays quietly dark.
+       */
+      googleSignIn: features.oauthGoogle,
+      email: features.email,
+      errorReporting: features.errorReporting,
+      sharedRateLimit: features.sharedRateLimit,
+      /** Which commit is actually serving this, so "did it deploy?" is answerable. */
+      commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
     },
     {
       status: healthy ? 200 : 503,

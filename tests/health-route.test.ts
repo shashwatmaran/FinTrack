@@ -6,7 +6,16 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
  * what it must *not* say: a driver error routinely carries the whole connection
  * string, credentials included.
  */
-const featuresMock = { database: false, auth: false, aiInsights: false, scheduledJobs: false };
+const featuresMock = {
+  database: false,
+  auth: false,
+  aiInsights: false,
+  scheduledJobs: false,
+  oauthGoogle: false,
+  email: false,
+  errorReporting: false,
+  sharedRateLimit: false,
+};
 const getDb = vi.fn();
 
 vi.mock("@/lib/env", () => ({
@@ -20,10 +29,9 @@ vi.mock("@/lib/db/client", () => ({ getDb }));
 const { GET } = await import("@/app/api/health/route");
 
 beforeEach(() => {
-  featuresMock.database = false;
-  featuresMock.auth = false;
-  featuresMock.aiInsights = false;
-  featuresMock.scheduledJobs = false;
+  for (const key of Object.keys(featuresMock) as (keyof typeof featuresMock)[]) {
+    featuresMock[key] = false;
+  }
   getDb.mockReset();
   vi.unstubAllEnvs();
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -108,6 +116,33 @@ describe("health endpoint", () => {
   it("never echoes the AUTH_URL value itself", async () => {
     vi.stubEnv("AUTH_URL", "https://internal-staging-host.example.com");
     expect(JSON.stringify(await body())).not.toContain("internal-staging-host");
+  });
+
+  it("reports every integration, so a missing redeploy is visible", async () => {
+    // "I added the variables" and "the running build has them" differ: Vercel
+    // bakes env vars in at build time, so without these each affected feature
+    // just goes quietly dark and looks like a code problem.
+    const payload = await body();
+    for (const key of [
+      "googleSignIn",
+      "email",
+      "errorReporting",
+      "sharedRateLimit",
+      "aiNarratives",
+      "scheduledJobs",
+    ]) {
+      expect(payload, `missing ${key}`).toHaveProperty(key);
+      expect(typeof payload[key], `${key} should be a boolean`).toBe("boolean");
+    }
+  });
+
+  it("reports which commit is serving, so 'did it deploy' is answerable", async () => {
+    vi.stubEnv("VERCEL_GIT_COMMIT_SHA", "dddfd4a1234567890");
+    expect((await body()).commit).toBe("dddfd4a");
+  });
+
+  it("says 'local' rather than pretending to know outside a deployment", async () => {
+    expect((await body()).commit).toBe("local");
   });
 
   it("reports whether AUTH_SECRET is present without revealing it", async () => {
