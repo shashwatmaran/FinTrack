@@ -1,6 +1,24 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const isDev = process.env.NODE_ENV === "development";
+
+/**
+ * The origin the browser posts crash reports to, derived from the DSN rather
+ * than hard-coded — Sentry's ingest host is per-organisation and per-region.
+ *
+ * Without this in `connect-src`, the CSP blocks every event and the failure is
+ * invisible: Sentry stays silent and looks like an app that never crashes.
+ */
+const sentryIngestOrigin = (() => {
+  const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN ?? process.env.SENTRY_DSN;
+  if (!dsn) return null;
+  try {
+    return new URL(dsn).origin;
+  } catch {
+    return null;
+  }
+})();
 
 /**
  * Content Security Policy.
@@ -15,10 +33,11 @@ const isDev = process.env.NODE_ENV === "development";
  * `'unsafe-eval'` is development-only — the HMR runtime needs it, production
  * does not.
  *
- * `connect-src 'self'` is deliberate: the AI provider is called from the server
- * in `lib/ai/client.ts`, never from the browser, so no external origin belongs
- * here. If a request to the model provider ever shows up blocked in the browser
- * console, that is a bug worth finding, not a policy to widen.
+ * `connect-src` allows exactly two things: this origin, and Sentry's ingest
+ * host when a DSN is configured. The AI provider is called from the server in
+ * `lib/ai/client.ts`, never from the browser, so it does not belong here — if a
+ * request to the model provider ever shows up blocked in the browser console,
+ * that is a bug worth finding, not a policy to widen.
  */
 const csp = [
   "default-src 'self'",
@@ -28,7 +47,7 @@ const csp = [
   // next/font self-hosts at build time, so no external font origin is needed.
   "font-src 'self' data:",
   "img-src 'self' data: blob:",
-  "connect-src 'self'",
+  `connect-src 'self'${sentryIngestOrigin ? ` ${sentryIngestOrigin}` : ""}`,
   "form-action 'self'",
   "base-uri 'self'",
   "object-src 'none'",
@@ -94,4 +113,30 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * Sentry's wrapper adds source-map upload and instruments the build. It is only
+ * applied when a DSN is present, so a checkout with no credentials builds
+ * exactly as it did before — the plugin otherwise emits warnings about a
+ * missing org/project on every build.
+ *
+ * Source maps upload only when `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and
+ * `SENTRY_PROJECT` are set. Without them errors still report, just with
+ * minified stack traces — worth adding later, not required to be useful now.
+ */
+export default process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN
+  ? withSentryConfig(nextConfig, {
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      silent: !process.env.CI,
+      // Hides the source maps from the deployed bundle after upload.
+      widenClientFileUpload: true,
+      /**
+       * Routes browser events through this origin instead of Sentry's, so ad
+       * blockers do not silently swallow crash reports. It also means the
+       * `connect-src` allowance above is belt-and-braces rather than the only
+       * thing keeping reporting alive.
+       */
+      tunnelRoute: "/monitoring",
+    })
+  : nextConfig;

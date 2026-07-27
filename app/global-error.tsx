@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 import "./globals.css";
 
 /**
@@ -21,6 +22,14 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
+    // Reporting is wrapped because this is the last boundary standing: if
+    // Sentry itself is what failed to load, throwing here would replace the
+    // error screen with a blank page. The console line always runs.
+    try {
+      Sentry.captureException(error);
+    } catch {
+      // Nothing useful to do — the screen below is the fallback.
+    }
     console.error("[fintrack] root layout error", error);
   }, [error]);
 

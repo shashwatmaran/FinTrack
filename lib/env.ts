@@ -72,6 +72,17 @@ const serverSchema = z.object({
    */
   CRON_SECRET: optionalString,
 
+  /**
+   * Phase: distributed rate limiting.
+   *
+   * Upstash Redis over its REST API, which Vercel provisions under the `KV_*`
+   * names. Without these the limiter falls back to per-process counters, which
+   * on serverless means one bucket per instance — real protection against a
+   * single-source flood, but not an exact ceiling.
+   */
+  KV_REST_API_URL: optionalUrl,
+  KV_REST_API_TOKEN: optionalString,
+
   // Phase: storage + observability
   BLOB_READ_WRITE_TOKEN: optionalString,
   SENTRY_DSN: optionalUrl,
@@ -102,6 +113,8 @@ export const features = {
   blobStorage: Boolean(env.BLOB_READ_WRITE_TOKEN),
   errorReporting: Boolean(env.SENTRY_DSN),
   scheduledJobs: Boolean(env.CRON_SECRET),
+  /** Counters shared across instances rather than one bucket per process. */
+  sharedRateLimit: Boolean(env.KV_REST_API_URL && env.KV_REST_API_TOKEN),
 } as const;
 
 export type FeatureFlag = keyof typeof features;

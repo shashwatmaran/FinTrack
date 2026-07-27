@@ -1,5 +1,7 @@
 import "server-only";
 
+import { RedisUnavailableError, isRedisConfigured, pipeline } from "./redis";
+
 /**
  * Fixed-window rate limiter, in process memory.
  *
@@ -99,11 +101,11 @@ export const SIGNUP_RATE_LIMIT: RateLimitRule = { limit: 5, windowMs: 15 * 60_00
  * "unknown" address in production means the deployment is behind something that
  * doesn't — worth a loud warning, not a silent exemption.
  */
-export function checkRequestRateLimit(
+export async function checkRequestRateLimit(
   request: Request,
   prefix: string,
   rule: RateLimitRule
-): RateLimitResult {
+): Promise<RateLimitResult> {
   const ip = clientIp(request);
 
   if (ip === "unknown") {
@@ -115,7 +117,60 @@ export function checkRequestRateLimit(
     );
   }
 
-  return checkRateLimit(`${prefix}:${ip}`, rule);
+  const key = `${prefix}:${ip}`;
+
+  if (isRedisConfigured()) {
+    try {
+      return await checkSharedRateLimit(key, rule);
+    } catch (error) {
+      /**
+       * Fall back rather than fail either way.
+       *
+       * Failing closed would lock every user out of sign-in whenever Redis
+       * hiccups — turning a dependency outage into a total outage. Failing
+       * fully open would drop the protection entirely. The in-process counter
+       * is weaker but still stops a single-source flood, which is the traffic
+       * this exists for.
+       */
+      console.warn(
+        "[fintrack] shared rate limit unavailable, using per-process counters:",
+        error instanceof RedisUnavailableError ? error.message : error
+      );
+    }
+  }
+
+  return checkRateLimit(key, rule);
+}
+
+/**
+ * Fixed window in Redis, in one round trip.
+ *
+ * `EXPIRE ... NX` sets the TTL only when the key has none, so the window is
+ * anchored to the first request in it. Refreshing the TTL on every request
+ * would let a steady stream of traffic hold the key alive forever and never
+ * reset the count.
+ */
+async function checkSharedRateLimit(
+  key: string,
+  rule: RateLimitRule
+): Promise<RateLimitResult> {
+  const seconds = Math.ceil(rule.windowMs / 1000);
+  const [countRaw, , ttlRaw] = await pipeline([
+    ["INCR", key],
+    ["EXPIRE", key, seconds, "NX"],
+    ["TTL", key],
+  ]);
+
+  const count = Number(countRaw);
+  if (!Number.isFinite(count)) throw new RedisUnavailableError("INCR did not return a number");
+
+  const ttl = Number(ttlRaw);
+  // -1 means no TTL was set, which would strand the key; treat it as a full window.
+  const retryAfter = Number.isFinite(ttl) && ttl > 0 ? ttl : seconds;
+
+  return count > rule.limit
+    ? { ok: false, remaining: 0, retryAfter }
+    : { ok: true, remaining: rule.limit - count, retryAfter: 0 };
 }
 
 /** Test-only: clears all windows between cases. */

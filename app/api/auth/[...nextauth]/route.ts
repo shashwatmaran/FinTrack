@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   const url = new URL(request.url);
 
   if (url.pathname.endsWith("/callback/credentials")) {
-    const limit = checkRequestRateLimit(request, "signin", AUTH_RATE_LIMIT);
+    const limit = await checkRequestRateLimit(request, "signin", AUTH_RATE_LIMIT);
     if (!limit.ok) {
       /**
        * Shaped as an Auth.js callback response, not as a bare `{ error }`.

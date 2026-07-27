@@ -14,6 +14,7 @@ import {
 } from "@/lib/mock-data";
 import { formatCurrency, initials as toInitials } from "@/lib/format";
 import { dueOccurrences } from "@/lib/recurring";
+import { sendSettlementRequestEmail } from "./email";
 import type { AccentToken, ActivityItem, AppUser, Expense, Group, NotificationItem, Settlement } from "@/lib/types";
 import {
   ForbiddenError,
@@ -276,6 +277,18 @@ export const memoryStore: DataStore = {
       read: false,
       createdAt: new Date().toISOString(),
     });
+
+    // Additive and non-blocking: sendSettlementRequestEmail never throws, and
+    // the settlement is already recorded whether or not the mail goes out.
+    if (payee?.email) {
+      await sendSettlementRequestEmail({
+        to: payee.email,
+        payerName,
+        amount: formatCurrency(input.amount),
+        groupName: group.name,
+      });
+    }
+
     return { ...settlement };
   },
 

@@ -48,8 +48,11 @@ export const config = {
    *   api/health — deployment diagnostic. It has to answer when auth is the
    *                broken thing, so requiring a session would make it useless
    *                in precisely the case it exists for.
+   *   monitoring — Sentry's tunnel (`tunnelRoute` in next.config.ts). Crash
+   *                reports have to get out from the signed-out pages too, and
+   *                a sign-in error is exactly the kind worth hearing about.
    */
   matcher: [
-    "/((?!api/auth|api/signup|api/cron|api/health|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api/auth|api/signup|api/cron|api/health|monitoring|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

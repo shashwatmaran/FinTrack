@@ -103,56 +103,56 @@ describe("checkRequestRateLimit", () => {
   const req = (headers: Record<string, string> = {}) =>
     new Request("http://localhost/api/signup", { headers });
 
-  const withNodeEnv = (value: string, run: () => void) => {
+  const withNodeEnv = async (value: string, run: () => Promise<void>) => {
     vi.stubEnv("NODE_ENV", value as "development" | "production" | "test");
     try {
-      run();
+      await run();
     } finally {
       vi.unstubAllEnvs();
     }
   };
 
-  it("limits by caller address", () => {
+  it("limits by caller address", async () => {
     const a = { "x-forwarded-for": "203.0.113.9" };
     const b = { "x-forwarded-for": "198.51.100.4" };
-    for (let i = 0; i < RULE.limit; i++) checkRequestRateLimit(req(a), "signin", RULE);
+    for (let i = 0; i < RULE.limit; i++) await checkRequestRateLimit(req(a), "signin", RULE);
 
-    expect(checkRequestRateLimit(req(a), "signin", RULE).ok).toBe(false);
+    expect((await checkRequestRateLimit(req(a), "signin", RULE)).ok).toBe(false);
     // A different address must not inherit the first one's exhausted window.
-    expect(checkRequestRateLimit(req(b), "signin", RULE).ok).toBe(true);
+    expect((await checkRequestRateLimit(req(b), "signin", RULE)).ok).toBe(true);
   });
 
-  it("keeps signup and signin buckets separate for the same address", () => {
+  it("keeps signup and signin buckets separate for the same address", async () => {
     const h = { "x-forwarded-for": "203.0.113.9" };
-    for (let i = 0; i < RULE.limit; i++) checkRequestRateLimit(req(h), "signin", RULE);
+    for (let i = 0; i < RULE.limit; i++) await checkRequestRateLimit(req(h), "signin", RULE);
 
-    expect(checkRequestRateLimit(req(h), "signin", RULE).ok).toBe(false);
-    expect(checkRequestRateLimit(req(h), "signup", RULE).ok).toBe(true);
+    expect((await checkRequestRateLimit(req(h), "signin", RULE)).ok).toBe(false);
+    expect((await checkRequestRateLimit(req(h), "signup", RULE)).ok).toBe(true);
   });
 
-  it("does not limit an unknown address in development", () => {
+  it("does not limit an unknown address in development", async () => {
     // Local requests carry no x-forwarded-for, so every browser tab and test
     // script shares one bucket and the developer locks themselves out.
-    withNodeEnv("development", () => {
+    await withNodeEnv("development", async () => {
       for (let i = 0; i < RULE.limit * 5; i++) {
-        expect(checkRequestRateLimit(req(), "signin", RULE).ok).toBe(true);
+        expect((await checkRequestRateLimit(req(), "signin", RULE)).ok).toBe(true);
       }
     });
   });
 
-  it("still limits an unknown address in production", () => {
+  it("still limits an unknown address in production", async () => {
     // Failing open here would let a caller bypass the limit by stripping the header.
-    withNodeEnv("production", () => {
+    await withNodeEnv("production", async () => {
       vi.spyOn(console, "warn").mockImplementation(() => {});
-      for (let i = 0; i < RULE.limit; i++) checkRequestRateLimit(req(), "signin", RULE);
-      expect(checkRequestRateLimit(req(), "signin", RULE).ok).toBe(false);
+      for (let i = 0; i < RULE.limit; i++) await checkRequestRateLimit(req(), "signin", RULE);
+      expect((await checkRequestRateLimit(req(), "signin", RULE)).ok).toBe(false);
     });
   });
 
-  it("warns in production when the address is unknown", () => {
-    withNodeEnv("production", () => {
+  it("warns in production when the address is unknown", async () => {
+    await withNodeEnv("production", async () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-      checkRequestRateLimit(req(), "signin", RULE);
+      await checkRequestRateLimit(req(), "signin", RULE);
       expect(warn).toHaveBeenCalled();
       expect(String(warn.mock.calls[0]?.[0])).toContain("x-forwarded-for");
     });

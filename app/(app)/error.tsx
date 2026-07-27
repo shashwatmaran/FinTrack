@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 import { AlertTriangle } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { ErrorScreen } from "@/components/common/error-screen";
@@ -20,6 +21,8 @@ export default function AppError({
   reset: () => void;
 }) {
   useEffect(() => {
+    // A no-op when SENTRY_DSN is unset, so the console line stays the fallback.
+    Sentry.captureException(error);
     console.error("[fintrack] page error", error);
   }, [error]);
 

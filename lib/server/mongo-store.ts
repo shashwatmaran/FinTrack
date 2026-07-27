@@ -7,6 +7,7 @@ import { collections, type ActivityDoc, type ExpenseDoc, type GroupDoc, type Not
 import { ensureIndexes } from "@/lib/db/indexes";
 import { formatCurrency, initials as toInitials } from "@/lib/format";
 import { dueOccurrences } from "@/lib/recurring";
+import { sendSettlementRequestEmail } from "./email";
 import type { AccentToken, ActivityItem, AppUser, Expense, Group, NotificationItem, Settlement } from "@/lib/types";
 import {
   ForbiddenError,
@@ -319,7 +320,10 @@ export const mongoStore: DataStore = {
     };
     await settlements.insertOne(doc);
 
-    const payee = await users.findOne({ _id: input.toUserId }, { projection: { name: 1 } });
+    const payee = await users.findOne(
+      { _id: input.toUserId },
+      { projection: { name: 1, email: 1 } }
+    );
     await recordActivity(
       group._id,
       actorId,
@@ -327,13 +331,26 @@ export const mongoStore: DataStore = {
     );
 
     // The payee is the only one who can confirm, so they must be told.
+    const payerName = await firstName(actorId);
     await notify([
       {
         userId: input.toUserId,
         title: "Payment awaiting your confirmation",
-        body: `${await firstName(actorId)} logged ${formatCurrency(input.amount)} via ${input.method} in ${group.name}`,
+        body: `${payerName} logged ${formatCurrency(input.amount)} via ${input.method} in ${group.name}`,
       },
     ]);
+
+    // Additive and non-blocking: sendSettlementRequestEmail never throws, and
+    // the settlement is already recorded whether or not the mail goes out.
+    if (payee?.email) {
+      await sendSettlementRequestEmail({
+        to: payee.email,
+        payerName,
+        amount: formatCurrency(input.amount),
+        groupName: group.name,
+      });
+    }
+
     return toSettlement(doc);
   },
 

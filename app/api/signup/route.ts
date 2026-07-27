@@ -13,7 +13,7 @@ import { signUpSchema } from "@/lib/validation";
 export async function POST(request: Request) {
   // Rate-limited before parsing: account creation is unauthenticated and runs
   // bcrypt, so it is both a spam vector and a CPU-exhaustion vector.
-  const limit = checkRequestRateLimit(request, "signup", SIGNUP_RATE_LIMIT);
+  const limit = await checkRequestRateLimit(request, "signup", SIGNUP_RATE_LIMIT);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Too many sign-up attempts. Try again in a few minutes." },

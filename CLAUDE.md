@@ -74,6 +74,17 @@ Tests need no running database — `tests/mongo-store.test.ts` starts a real
   `script-src 'unsafe-inline'` because Next injects inline bootstrap scripts;
   removing it means per-request nonces in `proxy.ts` and opts every route out of
   static rendering. Worth doing if the app ever renders user-supplied HTML.
+- **Side channels never fail the transaction.** `lib/server/email.ts` and the
+  Redis path in `rate-limit.ts` both return rather than throw. A settlement that
+  was genuinely recorded must not roll back because Resend was down, and a
+  Redis hiccup must not lock every user out of sign-in — the limiter falls back
+  to per-process counters, which is weaker than the shared count but stronger
+  than no limit at all. Failing closed on a dependency turns its outage into a
+  total outage.
+- **Modules holding a credential never put foreign text in an error message.**
+  `redis.ts` attaches the transport error as `cause` and throws its own message;
+  `email.ts` logs the status and recipient but never the response body. Callers
+  log these, and logs travel further than the code that wrote them.
 - **Recurring scheduling maths lives in `lib/recurring.ts` and stays pure.** Month-end clamping and catch-up are where the bugs are; keeping it free of dates-from-`Date.now()` and database access is what makes them testable.
 
 ## Tests
