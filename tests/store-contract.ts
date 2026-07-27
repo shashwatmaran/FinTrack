@@ -137,6 +137,45 @@ export function runStoreContract(harness: StoreHarness) {
         expect(after).toBe(before);
       });
 
+      it("has no password-change stamp before any reset", async () => {
+        expect(await store.passwordChangedAt(DEMO)).toBeNull();
+      });
+
+      it("stamps the change so older sessions can be refused", async () => {
+        // Sessions are JWTs; this timestamp is the only thing that can evict
+        // one that already exists.
+        const before = new Date().toISOString();
+        await store.setPasswordResetToken("maya.alvarez@email.com", HASH, future());
+        await store.consumePasswordReset(HASH, "brand-new-password");
+
+        const changed = await store.passwordChangedAt(DEMO);
+        expect(changed).toBeTruthy();
+        expect(changed! >= before).toBe(true);
+      });
+
+      it("leaves other accounts unstamped", async () => {
+        await store.setPasswordResetToken("maya.alvarez@email.com", HASH, future());
+        await store.consumePasswordReset(HASH, "brand-new-password");
+
+        expect(await store.passwordChangedAt(OTHER)).toBeNull();
+      });
+
+      it("does not stamp when the reset was refused", async () => {
+        await store.consumePasswordReset("f".repeat(64), "attacker-password");
+        expect(await store.passwordChangedAt(DEMO)).toBeNull();
+      });
+
+      it("never exposes the stamp on a user read", async () => {
+        await store.setPasswordResetToken("maya.alvarez@email.com", HASH, future());
+        await store.consumePasswordReset(HASH, "brand-new-password");
+
+        expect(JSON.stringify(await store.getUserById(DEMO))).not.toContain("passwordChangedAt");
+      });
+
+      it("returns null for an unknown user rather than throwing", async () => {
+        expect(await store.passwordChangedAt("nope")).toBeNull();
+      });
+
       it("invalidates an earlier token when a new one is requested", async () => {
         const first = "d".repeat(64);
         await store.setPasswordResetToken("maya.alvarez@email.com", first, future());

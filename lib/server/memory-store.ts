@@ -37,6 +37,7 @@ interface StoredUser extends AppUser {
   passwordHash?: string;
   resetTokenHash?: string;
   resetTokenExpiresAt?: string;
+  passwordChangedAt?: string;
 }
 
 interface MemoryState {
@@ -86,6 +87,7 @@ function stripSecrets(user: StoredUser): AppUser {
     passwordHash: _passwordHash,
     resetTokenHash: _resetTokenHash,
     resetTokenExpiresAt: _resetTokenExpiresAt,
+    passwordChangedAt: _passwordChangedAt,
     ...safe
   } = user;
   return safe;
@@ -138,9 +140,16 @@ export const memoryStore: DataStore = {
     }
 
     user.passwordHash = await bcrypt.hash(newPassword, 10);
+    // Stamped alongside the new password: any token issued before this instant
+    // stops being accepted.
+    user.passwordChangedAt = new Date().toISOString();
     delete user.resetTokenHash;
     delete user.resetTokenExpiresAt;
     return true;
+  },
+
+  async passwordChangedAt(userId) {
+    return state().users.find((u) => u.id === userId)?.passwordChangedAt ?? null;
   },
 
   async getVisibleUsers(actorId) {

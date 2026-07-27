@@ -12,7 +12,8 @@ import { z } from "zod";
  * database — the behaviour under test is the wrapper's, not the store's.
  */
 const authMock = vi.fn();
-const storeMock = { marker: "store" };
+const passwordChangedAt = vi.fn().mockResolvedValue(null);
+const storeMock = { marker: "store", passwordChangedAt };
 
 vi.mock("@/auth", () => ({ auth: () => authMock() }));
 vi.mock("@/lib/server/get-store", () => ({ getStore: async () => storeMock }));
@@ -27,7 +28,13 @@ const { ForbiddenError, NotFoundError, ValidationError } = await import(
   "@/lib/server/store-types"
 );
 
-const signedIn = () => authMock.mockResolvedValue({ user: { id: "u1" } });
+/** Seconds, as `iat` is. Well after any password-change stamp used below. */
+const NOW_SECONDS = Math.floor(Date.now() / 1000);
+
+const signedIn = (issuedAt: number = NOW_SECONDS) =>
+  authMock.mockResolvedValue({ user: { id: "u1", issuedAt } });
+/** Separate helper: `signedIn(undefined)` would just take the default. */
+const signedInWithoutIssuedAt = () => authMock.mockResolvedValue({ user: { id: "u1" } });
 const signedOut = () => authMock.mockResolvedValue(null);
 
 const jsonRequest = (body: unknown) =>
@@ -39,6 +46,7 @@ const jsonRequest = (body: unknown) =>
 
 beforeEach(() => {
   authMock.mockReset();
+  passwordChangedAt.mockReset().mockResolvedValue(null);
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -74,7 +82,9 @@ describe("withAuth", () => {
     const payload = await (await handler(req())).json();
 
     expect(payload.userId).toBe("u1");
-    expect(payload.store).toEqual(storeMock);
+    // Compared by marker, not deep equality: the store carries methods, which
+    // do not survive the JSON round trip this response makes.
+    expect(payload.store.marker).toBe("store");
   });
 
   it("returns the handler's value as JSON with a 200", async () => {
@@ -82,6 +92,79 @@ describe("withAuth", () => {
     const response = await withAuth(async () => [{ id: "g1" }])(req());
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([{ id: "g1" }]);
+  });
+});
+
+/**
+ * Sessions are JWTs, so a password reset cannot delete one server-side.
+ * Refusing tokens issued before the change is the only thing that evicts
+ * someone already signed in — which is usually the entire reason for a reset.
+ */
+describe("a session that outlived its password", () => {
+  const hourAgo = new Date(Date.now() - 3_600_000).toISOString();
+  const inAnHour = new Date(Date.now() + 3_600_000).toISOString();
+
+  it("accepts a token issued after the change", async () => {
+    signedIn(NOW_SECONDS);
+    passwordChangedAt.mockResolvedValue(hourAgo);
+
+    expect((await withAuth(async () => ({ ok: true }))(req())).status).toBe(200);
+  });
+
+  it("refuses a token issued before it", async () => {
+    signedIn(NOW_SECONDS);
+    passwordChangedAt.mockResolvedValue(inAnHour);
+
+    const response = await withAuth(async () => ({ ok: true }))(req());
+    expect(response.status).toBe(401);
+    expect((await response.json()).error).toMatch(/password changed/i);
+  });
+
+  it("never runs the handler for a session that was invalidated", async () => {
+    signedIn(NOW_SECONDS);
+    passwordChangedAt.mockResolvedValue(inAnHour);
+
+    const body = vi.fn().mockResolvedValue({});
+    await withAuth(body)(req());
+    expect(body).not.toHaveBeenCalled();
+  });
+
+  it("refuses a token with no issue time at all", async () => {
+    // It cannot be shown to be new enough, so it is not trusted.
+    signedInWithoutIssuedAt();
+    passwordChangedAt.mockResolvedValue(hourAgo);
+
+    expect((await withAuth(async () => ({ ok: true }))(req())).status).toBe(401);
+  });
+
+  it("accepts a token with no issue time when the password never changed", async () => {
+    // Nothing to compare against; every existing session predates nothing.
+    signedInWithoutIssuedAt();
+    passwordChangedAt.mockResolvedValue(null);
+
+    expect((await withAuth(async () => ({ ok: true }))(req())).status).toBe(200);
+  });
+
+  it("applies to routes that take a body too", async () => {
+    signedIn(NOW_SECONDS);
+    passwordChangedAt.mockResolvedValue(inAnHour);
+
+    const schema = z.object({ name: z.string() });
+    const response = await withAuthBody(schema, async () => ({ ok: true }))(
+      jsonRequest({ name: "Goa Trip" })
+    );
+    expect(response.status).toBe(401);
+  });
+
+  it("checks before parsing the body", async () => {
+    signedIn(NOW_SECONDS);
+    passwordChangedAt.mockResolvedValue(inAnHour);
+
+    const schema = z.object({ name: z.string().min(2) });
+    const response = await withAuthBody(schema, async () => ({ ok: true }))(
+      jsonRequest({ name: "x" }) // would 400 if validation ran first
+    );
+    expect(response.status).toBe(401);
   });
 });
 

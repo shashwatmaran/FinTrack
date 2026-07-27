@@ -1,9 +1,11 @@
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
+import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AppShell } from "@/components/shell/app-shell";
 import { makeQueryClient } from "@/lib/query-client";
 import { loadBootstrap } from "@/lib/server/bootstrap";
 import { getStore } from "@/lib/server/get-store";
+import { sessionOutlivedItsPassword } from "@/lib/server/route-helpers";
 import { queryKeys } from "@/lib/query-keys";
 
 /**
@@ -33,6 +35,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const userId = session?.user?.id;
   if (userId) {
     const store = await getStore();
+
+    /**
+     * The same check the API wrapper makes. Without it a session issued before
+     * a password reset would still get a fully rendered shell — the API calls
+     * behind it would 401, but the user would see their data first, which is
+     * the opposite of what a reset is for.
+     */
+    const stale = await sessionOutlivedItsPassword(store, userId, session.user.issuedAt);
+    if (stale) redirect("/signin");
+
     await queryClient.prefetchQuery({
       queryKey: queryKeys.bootstrap,
       queryFn: () => loadBootstrap(store, userId),

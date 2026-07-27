@@ -49,8 +49,7 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
               and can only be used once.
             </p>
             <p className="mt-2 text-[13px] leading-[1.5] font-medium text-ft-muted">
-              You&apos;ll stay signed in here — changing the password doesn&apos;t end this
-              session.
+              Using it signs out every device, including this one.
             </p>
           </div>
         </div>

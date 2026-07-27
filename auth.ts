@@ -103,6 +103,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     session({ session, token }) {
       if (token.sub) session.user.id = token.sub;
+      /**
+       * When this token was issued, surfaced so route handlers can refuse one
+       * that predates a password change. `iat` is standard JWT and Auth.js
+       * sets it; without carrying it onto the session there is no way to tell
+       * an old token from a new one, and a reset would not evict anybody.
+       */
+      if (typeof token.iat === "number") session.user.issuedAt = token.iat;
       return session;
     },
   },

@@ -209,12 +209,26 @@ export const mongoStore: DataStore = {
     const updated = await users.findOneAndUpdate(
       { resetTokenHash: tokenHash, resetTokenExpiresAt: { $gt: new Date().toISOString() } },
       {
-        $set: { passwordHash: await bcrypt.hash(newPassword, 10) },
+        $set: {
+          passwordHash: await bcrypt.hash(newPassword, 10),
+          // Stamped in the same write as the new password: any token issued
+          // before this instant stops being accepted.
+          passwordChangedAt: new Date().toISOString(),
+        },
         $unset: { resetTokenHash: "", resetTokenExpiresAt: "" },
       },
       { returnDocument: "after" }
     );
     return Boolean(updated);
+  },
+
+  async passwordChangedAt(userId) {
+    const { users } = await db();
+    const doc = await users.findOne(
+      { _id: userId },
+      { projection: { passwordChangedAt: 1 } }
+    );
+    return doc?.passwordChangedAt ?? null;
   },
 
   async getVisibleUsers(actorId) {

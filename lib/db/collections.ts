@@ -32,6 +32,14 @@ export interface UserDoc {
    */
   resetTokenHash?: string;
   resetTokenExpiresAt?: string;
+  /**
+   * When the password last changed.
+   *
+   * Sessions are JWTs, so there is no server-side session to delete. This is
+   * the substitute: any token issued before this instant is refused, which is
+   * what makes a reset actually evict whoever was already signed in.
+   */
+  passwordChangedAt?: string;
   createdAt: string;
 }
 

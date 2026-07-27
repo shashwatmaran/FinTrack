@@ -18,6 +18,51 @@ function errorResponse(status: number, message: string) {
 }
 
 /**
+ * Refuses a token issued before the account's password last changed.
+ *
+ * Sessions are JWTs, so a reset cannot delete anything server-side — without
+ * this, whoever was already signed in on another device stays signed in until
+ * the token expires, which is exactly the person a reset is usually meant to
+ * remove. Auth.js cannot use database sessions alongside the Credentials
+ * provider, so comparing timestamps is the mechanism available.
+ *
+ * Costs one indexed lookup per authenticated request. Since the shell now
+ * loads through a single `/api/bootstrap` call, that is about one extra read
+ * per page rather than one per resource.
+ */
+export async function sessionOutlivedItsPassword(
+  store: DataStore,
+  userId: string,
+  issuedAt: number | undefined
+): Promise<boolean> {
+  const changedAt = await store.passwordChangedAt(userId);
+  if (!changedAt) return false;
+
+  // A token with no `iat` cannot be shown to be new enough, so it is not
+  // trusted — failing closed is right when the question is "was this issued
+  // before the password was changed?".
+  if (typeof issuedAt !== "number") return true;
+
+  // `iat` is seconds; the stamp is an ISO string.
+  return new Date(changedAt).getTime() > issuedAt * 1000;
+}
+
+/** Resolves the session and rejects one the account has since invalidated. */
+async function resolveActor(
+  store: DataStore
+): Promise<{ userId: string } | { error: NextResponse }> {
+  const session = await auth();
+  if (!session?.user?.id) return { error: errorResponse(401, "Not signed in") };
+
+  if (await sessionOutlivedItsPassword(store, session.user.id, session.user.issuedAt)) {
+    return {
+      error: errorResponse(401, "Your password changed. Sign in again."),
+    };
+  }
+  return { userId: session.user.id };
+}
+
+/**
  * Wraps a route handler so every endpoint gets the same three guarantees:
  * a signed-in user, a store instance, and consistent error mapping. Handlers
  * receive `userId` already resolved, which is what makes it impossible to
@@ -26,11 +71,11 @@ function errorResponse(status: number, message: string) {
 export function withAuth<T>(handler: (ctx: RouteContext) => Promise<T>) {
   return async (request: Request): Promise<NextResponse> => {
     try {
-      const session = await auth();
-      if (!session?.user?.id) return errorResponse(401, "Not signed in");
-
       const store = await getStore();
-      const data = await handler({ userId: session.user.id, store, request });
+      const actor = await resolveActor(store);
+      if ("error" in actor) return actor.error;
+
+      const data = await handler({ userId: actor.userId, store, request });
       return NextResponse.json(data);
     } catch (error) {
       return mapError(error);
@@ -45,14 +90,14 @@ export function withAuthBody<S extends ZodType, T>(
 ) {
   return async (request: Request): Promise<NextResponse> => {
     try {
-      const session = await auth();
-      if (!session?.user?.id) return errorResponse(401, "Not signed in");
+      const store = await getStore();
+      const actor = await resolveActor(store);
+      if ("error" in actor) return actor.error;
 
       const json = await request.json().catch(() => null);
       const body = schema.parse(json);
 
-      const store = await getStore();
-      const data = await handler(body, { userId: session.user.id, store, request });
+      const data = await handler(body, { userId: actor.userId, store, request });
       return NextResponse.json(data);
     } catch (error) {
       return mapError(error);
@@ -69,12 +114,12 @@ export function withAuthParams<P extends Record<string, string>, T>(
 ) {
   return async (request: Request, segment: { params: Promise<P> }): Promise<NextResponse> => {
     try {
-      const session = await auth();
-      if (!session?.user?.id) return errorResponse(401, "Not signed in");
+      const store = await getStore();
+      const actor = await resolveActor(store);
+      if ("error" in actor) return actor.error;
 
       const params = await segment.params;
-      const store = await getStore();
-      const data = await handler(params, { userId: session.user.id, store, request });
+      const data = await handler(params, { userId: actor.userId, store, request });
       return NextResponse.json(data);
     } catch (error) {
       return mapError(error);
@@ -89,15 +134,15 @@ export function withAuthParamsBody<P extends Record<string, string>, S extends Z
 ) {
   return async (request: Request, segment: { params: Promise<P> }): Promise<NextResponse> => {
     try {
-      const session = await auth();
-      if (!session?.user?.id) return errorResponse(401, "Not signed in");
+      const store = await getStore();
+      const actor = await resolveActor(store);
+      if ("error" in actor) return actor.error;
 
       const params = await segment.params;
       const json = await request.json().catch(() => null);
       const body = schema.parse(json);
 
-      const store = await getStore();
-      const data = await handler(params, body, { userId: session.user.id, store, request });
+      const data = await handler(params, body, { userId: actor.userId, store, request });
       return NextResponse.json(data);
     } catch (error) {
       return mapError(error);

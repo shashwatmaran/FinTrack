@@ -43,10 +43,13 @@ export async function POST(request: Request) {
     }
 
     /**
-     * Existing sessions are not revoked, and that is a real limitation rather
-     * than an oversight: sessions are JWTs, so there is nothing server-side to
-     * invalidate. Anyone already signed in on another device stays signed in
-     * until their token expires. Fixing it properly means database sessions.
+     * Sessions issued before this moment stop working.
+     *
+     * There is no server-side session to delete — Auth.js cannot use database
+     * sessions alongside the Credentials provider — so the store stamps
+     * `passwordChangedAt` and every authenticated request compares the token's
+     * `iat` against it. Anyone signed in on another device is turned away on
+     * their next request, which is usually the point of resetting.
      */
     return NextResponse.json({ ok: true });
   } catch (error) {

@@ -233,7 +233,11 @@ The settlement request is the only notification that leaves the app. It is the o
 
 `lib/server/email.ts` never throws — the settlement is recorded whether or not the mail goes out.
 
-Still open: invites and password resets, both of which need product surface that doesn't exist yet rather than a credential.
+**Password reset** issues a token whose SHA-256 is all the store ever sees, and the request endpoint answers identically whether or not the address exists — otherwise it is a way to enumerate who has an account here.
+
+Resetting also evicts sessions that already exist. Auth.js cannot use database sessions alongside the Credentials provider, so there is nothing server-side to delete; instead the reset stamps `passwordChangedAt` on the user and every authenticated request refuses a token whose `iat` predates it. That costs one indexed lookup per request, which since the shell loads through a single `/api/bootstrap` call is about one extra read per page.
+
+**Invites** are member-only, because an invite grants sight of everyone's balances in that group. Unknown, expired and already-spent are one answer, so a spent token cannot confirm a group exists.
 
 ### Phase 8 — AI insights ✅
 
@@ -373,7 +377,7 @@ Generation runs on read rather than inside the expense write: awaiting a model c
 ## Tests
 
 ```bash
-npm test              # 530 tests, ~11s
+npm test              # 578 tests, ~11s
 npm run test:watch
 npm run test:coverage
 ```
@@ -408,6 +412,8 @@ No database or dev server required — the MongoDB suite starts a real `mongod` 
 | `settle-up-modal.test.tsx` | that a logged payment is a claim, and says so |
 | `settlements-view.test.tsx` | that only the payee is offered confirm and dispute |
 | `create-group-modal.test.tsx` | that the members submitted are the members selected |
+| `activity-view.test.tsx` | that stored `**bold**` renders as text, never as HTML |
+| `expense-detail-modal.test.tsx` | that your position is your share, not the whole expense |
 
 **The contract suite is the important one.** `memory-store` and `mongo-store` are separate code but only one runs in production, so an authorization rule can silently exist in one and not the other. Both are held to the same 45 assertions. New `DataStore` methods belong there, not in a per-implementation file.
 
@@ -419,7 +425,7 @@ The two highest-stakes screens are covered because their bugs are silent. The sp
 
 Writing them found a shipped bug: the settle-up form defaulted its payment method to `"Venmo"`, which was not one of the options the dropdown offered — a leftover from the US-facing prototype that survived the move to rupees. Anyone who did not touch the field submitted a method the UI never showed them.
 
-Not yet covered: the activity feed and the expense detail modal.
+Every screen now has coverage.
 
 ## Legacy prototype
 

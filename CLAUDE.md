@@ -74,6 +74,13 @@ Tests need no running database — `tests/mongo-store.test.ts` starts a real
   `script-src 'unsafe-inline'` because Next injects inline bootstrap scripts;
   removing it means per-request nonces in `proxy.ts` and opts every route out of
   static rendering. Worth doing if the app ever renders user-supplied HTML.
+- **A password reset has to evict sessions, and JWTs can't be deleted.** Auth.js
+  can't use database sessions alongside the Credentials provider, so the reset
+  stamps `passwordChangedAt` and `route-helpers.ts` refuses any token whose
+  `iat` predates it. The check belongs in the `withAuth*` wrappers and the
+  `(app)` layout — those are the two places a session is resolved, and missing
+  the layout would render a full shell of data before the API calls 401. A
+  token with no `iat` fails closed: it can't be shown to be new enough.
 - **Side channels never fail the transaction.** `lib/server/email.ts` and the
   Redis path in `rate-limit.ts` both return rather than throw. A settlement that
   was genuinely recorded must not roll back because Resend was down, and a

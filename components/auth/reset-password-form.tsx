@@ -67,7 +67,8 @@ export function ResetPasswordForm() {
         </div>
         <h2 className="text-[30px] font-bold tracking-[-1px]">Password changed</h2>
         <p className="mt-2.5 mb-6.5 text-[15px] leading-[1.55] font-medium text-ft-muted">
-          That link has been used up and won&apos;t work again. Sign in with your new password.
+          That link has been used up and won&apos;t work again. Anyone signed in on another
+          device has been signed out. Sign in with your new password.
         </p>
         <Button size="lg" onClick={() => router.push("/signin")}>
           Go to sign in

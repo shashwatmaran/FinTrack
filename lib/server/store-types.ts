@@ -84,6 +84,16 @@ export interface DataStore {
    */
   consumePasswordReset(tokenHash: string, newPassword: string): Promise<boolean>;
 
+  /**
+   * When this user's password last changed, or null if it never has.
+   *
+   * Read on every authenticated request to decide whether a token predates the
+   * change. Sessions are JWTs — there is nothing to delete server-side — so
+   * this comparison is the only thing that evicts a session someone else is
+   * holding after a reset.
+   */
+  passwordChangedAt(userId: string): Promise<string | null>;
+
   /** Everyone who shares at least one group with `actorId`, plus the actor. */
   getVisibleUsers(actorId: string): Promise<AppUser[]>;
 
