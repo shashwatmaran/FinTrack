@@ -365,7 +365,7 @@ Generation runs on read rather than inside the expense write: awaiting a model c
 ## Tests
 
 ```bash
-npm test              # 369 tests, ~9s
+npm test              # 412 tests, ~10s
 npm run test:watch
 npm run test:coverage
 ```
@@ -388,8 +388,11 @@ No database or dev server required — the MongoDB suite starts a real `mongod` 
 | `auth-errors.test.ts` | bad credentials vs. infrastructure failure, and what neither may reveal |
 | `health-route.test.ts` | status reporting, and that no secret or connection string escapes |
 | `db-client.test.ts` | one-connection-pool-per-process |
+| `query-keys.test.ts` | that the keys stay importable from both sides of the RSC boundary |
 | `sign-in-form.test.tsx` | that a failed submit **always** produces visible feedback |
 | `dashboard-view.test.tsx` | empty-vs-loading, onboarding, rupee formatting |
+| `add-expense-modal.test.tsx` | that the split preview matches what is submitted |
+| `group-detail-view.test.tsx` | which way a balance reads, and escrow at the UI layer |
 
 **The contract suite is the important one.** `memory-store` and `mongo-store` are separate code but only one runs in production, so an authorization rule can silently exist in one and not the other. Both are held to the same 45 assertions. New `DataStore` methods belong there, not in a per-implementation file.
 
@@ -397,7 +400,9 @@ Each rule was verified by breaking it deliberately and confirming the suite fail
 
 **Component tests** (`*.test.tsx`) run under jsdom via a `@vitest-environment jsdom` docblock, so only the files that need a DOM pay for one. They exist because the two worst bugs this project has had were both invisible to everything above: a resolved-but-empty query rendering as a permanent skeleton, and a sign-in form that failed *silently* when Auth.js threw. In both cases the server was returning exactly the right thing. Both were re-broken deliberately to confirm the new tests fail.
 
-Not yet covered: the modals and the group detail view.
+The two highest-stakes screens are covered because their bugs are silent. The split form is where money is divided between real people — a preview that disagrees with what gets submitted shows one number and charges another. Group detail states a balance as a sentence, so reversing the sign turns "you're owed ₹500" into "you owe ₹500" while every API response stays correct. Both were verified by breaking them: dropping the rounding remainder, and swapping the balance wording.
+
+Not yet covered: the settle-up and create-group modals, and the settlements view.
 
 ## Legacy prototype
 
