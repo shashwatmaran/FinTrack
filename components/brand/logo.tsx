@@ -1,3 +1,4 @@
+import { MARK_PATH, MARK_VIEWBOX, BRAND_INK } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 export function Logo({ compact = false }: { compact?: boolean }) {
@@ -9,18 +10,19 @@ export function Logo({ compact = false }: { compact?: boolean }) {
           compact ? "h-[38px] w-[38px] bg-ft-lime" : "h-11 w-11 bg-white"
         )}
       >
+        {/* Same path the favicon draws — see lib/brand.ts. */}
         <svg
           width={compact ? 20 : 23}
           height={compact ? 20 : 23}
-          viewBox="0 0 24 24"
+          viewBox={MARK_VIEWBOX}
           fill="none"
-          stroke="#1A1A1A"
+          stroke={BRAND_INK}
           strokeWidth="2.6"
           strokeLinecap="round"
           strokeLinejoin="round"
           aria-hidden="true"
         >
-          <path d="M3 6h18M3 12h18M6 18h12" />
+          <path d={MARK_PATH} />
         </svg>
       </span>
       <span

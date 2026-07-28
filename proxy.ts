@@ -48,8 +48,8 @@ export default auth((request) => {
 
 export const config = {
   /**
-   * Everything except Next internals and static assets, minus four API paths
-   * that are legitimately reachable without a session:
+   * Everything except Next internals and static assets, minus the paths that
+   * are legitimately reachable without a session:
    *   api/auth   — the sign-in flow itself
    *   api/signup — account creation
    *   api/cron   — Vercel Cron, which presents a bearer secret, not a cookie;
@@ -62,8 +62,12 @@ export const config = {
    *   monitoring — Sentry's tunnel (`tunnelRoute` in next.config.ts). Crash
    *                reports have to get out from the signed-out pages too, and
    *                a sign-in error is exactly the kind worth hearing about.
+   *   icon,      — the generated favicon and touch icon. They have no file
+   *   apple-icon   extension, so the image rule at the end does not cover them,
+   *                and without this a signed-out visitor's browser asks for the
+   *                tab icon and is handed the sign-in page's HTML.
    */
   matcher: [
-    "/((?!api/auth|api/signup|api/cron|api/health|api/password|monitoring|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api/auth|api/signup|api/cron|api/health|api/password|monitoring|icon|apple-icon|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
