@@ -187,6 +187,19 @@ export const mongoStore: DataStore = {
     return toUser(doc);
   },
 
+  async updateUser(actorId, { name }) {
+    const { users } = await db();
+    const doc = await users.findOneAndUpdate(
+      { _id: actorId },
+      // Initials are recomputed here rather than accepted from the client, so
+      // an avatar can never disagree with the name printed beside it.
+      { $set: { name, initials: toInitials(name) } },
+      { returnDocument: "after" }
+    );
+    if (!doc) throw new NotFoundError("User not found");
+    return toUser(doc);
+  },
+
   async setPasswordResetToken(email, tokenHash, expiresAt) {
     const { users } = await db();
     // Overwrites any previous token, so requesting a new link invalidates the
@@ -288,6 +301,19 @@ export const mongoStore: DataStore = {
     };
     await invites.insertOne(doc);
     return toInvite(doc);
+  },
+
+  async listGroupInvites(actorId, groupId) {
+    const { invites } = await db();
+    // The same rule as issuing one: a pending invite is an email address
+    // belonging to someone outside the group, so only a member may read it.
+    await requireMembership(actorId, groupId);
+
+    const docs = await invites
+      .find({ groupId, status: "pending", expiresAt: { $gt: new Date().toISOString() } })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return docs.map(toInvite);
   },
 
   async acceptGroupInvite(actorId, tokenHash) {

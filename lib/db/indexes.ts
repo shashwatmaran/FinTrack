@@ -9,7 +9,8 @@ let ensured: Promise<void> | null = null;
  * access rather than as a separate migration step.
  */
 async function createIndexes(): Promise<void> {
-  const { users, groups, expenses, settlements, notifications, activity } = await collections();
+  const { users, groups, expenses, settlements, notifications, activity, invites } =
+    await collections();
 
   await Promise.all([
     // Sign-in looks users up by email; it must be unique.
@@ -33,6 +34,14 @@ async function createIndexes(): Promise<void> {
 
     notifications.createIndex({ userId: 1, createdAt: -1 }, { name: "userId_createdAt" }),
     activity.createIndex({ groupId: 1, createdAt: -1 }, { name: "groupId_createdAt" }),
+
+    // Redeeming a link is a lookup by hash. Not unique: collision is prevented
+    // by 256 bits of randomness in the token, not by the database, and a unique
+    // index here would only turn an impossible event into a failed migration on
+    // an existing deployment.
+    invites.createIndex({ tokenHash: 1 }, { name: "tokenHash" }),
+    // "Who has an outstanding invite to this group?" — `listGroupInvites`.
+    invites.createIndex({ groupId: 1, status: 1, createdAt: -1 }, { name: "groupId_status_createdAt" }),
   ]);
 }
 

@@ -48,6 +48,19 @@ export interface CreateInviteInput {
 }
 
 /**
+ * Deliberately name-only.
+ *
+ * Email is the sign-in identity *and* the address a password reset is sent to,
+ * so changing it without proving control of the new inbox hands over the
+ * account to whoever typed it. That needs a verification round trip — a
+ * separate feature, not a field on this one. `initials` and `color` are derived
+ * and computed by the store, never accepted from a client.
+ */
+export interface UpdateUserInput {
+  name: string;
+}
+
+/**
  * The contract every read and write in the app goes through. Two
  * implementations exist: MongoDB when MONGODB_URI is configured, and an
  * in-process store otherwise. Route handlers depend on this interface only,
@@ -61,6 +74,16 @@ export interface DataStore {
   getUserById(id: string): Promise<AppUser | null>;
   getUserByEmail(email: string): Promise<(AppUser & { passwordHash?: string }) | null>;
   createUser(input: CreateUserInput): Promise<AppUser>;
+
+  /**
+   * Edits the acting user's own profile.
+   *
+   * There is no target id: `actorId` *is* the subject. That is the whole
+   * authorization rule, expressed so there is nothing to forget — an endpoint
+   * cannot accidentally let one user rename another, because no signature here
+   * can express it.
+   */
+  updateUser(actorId: string, input: UpdateUserInput): Promise<AppUser>;
 
   /**
    * Password reset. Both methods are unauthenticated by nature — the caller is
@@ -107,6 +130,18 @@ export interface DataStore {
    * As with password resets the store receives only the token's hash.
    */
   createGroupInvite(actorId: string, input: CreateInviteInput): Promise<GroupInvite>;
+
+  /**
+   * Outstanding invitations for a group. Only a member may list them: a pending
+   * invite is an email address belonging to someone who has not joined, so this
+   * is the same disclosure `createGroupInvite` guards, read instead of written.
+   *
+   * Returns pending, unexpired invites only. An expired one would be an entry
+   * the client offers to act on and `acceptGroupInvite` then refuses — the two
+   * must agree on what "outstanding" means, and the accept path is the
+   * authority.
+   */
+  listGroupInvites(actorId: string, groupId: string): Promise<GroupInvite[]>;
 
   /**
    * Redeems an invite for the acting user, who must already have an account.

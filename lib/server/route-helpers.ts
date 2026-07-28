@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { ZodError, type ZodType } from "zod";
 import { auth } from "@/auth";
 import { getStore } from "./get-store";
+import { readMobileToken } from "./mobile-token";
 import { ForbiddenError, NotFoundError, ValidationError, type DataStore } from "./store-types";
 
 export interface RouteContext {
@@ -47,19 +48,45 @@ export async function sessionOutlivedItsPassword(
   return new Date(changedAt).getTime() > issuedAt * 1000;
 }
 
-/** Resolves the session and rejects one the account has since invalidated. */
+/**
+ * Resolves the session and rejects one the account has since invalidated.
+ *
+ * Two credentials are accepted: the web's session cookie, and a Bearer token
+ * from the native client. The cookie is tried first because it is by far the
+ * common case and costs nothing extra.
+ *
+ * The fallback lives here rather than in individual handlers on purpose. This
+ * function sits behind all four `withAuth*` wrappers, so putting it here makes
+ * every existing endpoint Bearer-capable at once — and, more importantly, every
+ * future one too. Per-handler opt-in would guarantee one eventually gets missed,
+ * and the symptom would be a single screen that mysteriously 401s on mobile.
+ */
 async function resolveActor(
-  store: DataStore
+  store: DataStore,
+  request: Request
 ): Promise<{ userId: string } | { error: NextResponse }> {
   const session = await auth();
-  if (!session?.user?.id) return { error: errorResponse(401, "Not signed in") };
+  let userId = session?.user?.id;
+  let issuedAt = session?.user?.issuedAt;
 
-  if (await sessionOutlivedItsPassword(store, session.user.id, session.user.issuedAt)) {
+  if (!userId) {
+    const claims = await readMobileToken(request);
+    if (claims) {
+      userId = claims.userId;
+      issuedAt = claims.issuedAt;
+    }
+  }
+
+  if (!userId) return { error: errorResponse(401, "Not signed in") };
+
+  // Applies to mobile tokens unchanged: `encode` stamps `iat`, so a reset
+  // evicts a phone exactly the way it evicts a browser.
+  if (await sessionOutlivedItsPassword(store, userId, issuedAt)) {
     return {
       error: errorResponse(401, "Your password changed. Sign in again."),
     };
   }
-  return { userId: session.user.id };
+  return { userId };
 }
 
 /**
@@ -72,7 +99,7 @@ export function withAuth<T>(handler: (ctx: RouteContext) => Promise<T>) {
   return async (request: Request): Promise<NextResponse> => {
     try {
       const store = await getStore();
-      const actor = await resolveActor(store);
+      const actor = await resolveActor(store, request);
       if ("error" in actor) return actor.error;
 
       const data = await handler({ userId: actor.userId, store, request });
@@ -91,7 +118,7 @@ export function withAuthBody<S extends ZodType, T>(
   return async (request: Request): Promise<NextResponse> => {
     try {
       const store = await getStore();
-      const actor = await resolveActor(store);
+      const actor = await resolveActor(store, request);
       if ("error" in actor) return actor.error;
 
       const json = await request.json().catch(() => null);
@@ -115,7 +142,7 @@ export function withAuthParams<P extends Record<string, string>, T>(
   return async (request: Request, segment: { params: Promise<P> }): Promise<NextResponse> => {
     try {
       const store = await getStore();
-      const actor = await resolveActor(store);
+      const actor = await resolveActor(store, request);
       if ("error" in actor) return actor.error;
 
       const params = await segment.params;
@@ -135,7 +162,7 @@ export function withAuthParamsBody<P extends Record<string, string>, S extends Z
   return async (request: Request, segment: { params: Promise<P> }): Promise<NextResponse> => {
     try {
       const store = await getStore();
-      const actor = await resolveActor(store);
+      const actor = await resolveActor(store, request);
       if ("error" in actor) return actor.error;
 
       const params = await segment.params;

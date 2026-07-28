@@ -121,6 +121,17 @@ export const memoryStore: DataStore = {
     return stripSecrets(user);
   },
 
+  async updateUser(actorId, { name }) {
+    const user = state().users.find((u) => u.id === actorId);
+    if (!user) throw new NotFoundError("User not found");
+
+    user.name = name;
+    // Recomputed, never taken from the client: initials that disagree with the
+    // name would show one thing on an avatar and another on the row beside it.
+    user.initials = toInitials(name);
+    return stripSecrets(user);
+  },
+
   async setPasswordResetToken(email, tokenHash, expiresAt) {
     const user = state().users.find((u) => u.email.toLowerCase() === email.toLowerCase());
     if (!user) return null;
@@ -211,6 +222,20 @@ export const memoryStore: DataStore = {
 
     const { tokenHash: _tokenHash, ...safe } = invite;
     return safe;
+  },
+
+  async listGroupInvites(actorId, groupId) {
+    const s = state();
+    const group = s.groups.find((g) => g.id === groupId);
+    if (!group) throw new NotFoundError("Group not found");
+    // The same rule as issuing one: a pending invite is an email address
+    // belonging to someone outside the group, so only a member may read it.
+    if (!group.memberIds.includes(actorId)) throw new ForbiddenError();
+
+    const now = new Date().toISOString();
+    return s.invites
+      .filter((i) => i.groupId === groupId && i.status === "pending" && i.expiresAt > now)
+      .map(({ tokenHash: _tokenHash, ...safe }) => safe);
   },
 
   async acceptGroupInvite(actorId, tokenHash) {

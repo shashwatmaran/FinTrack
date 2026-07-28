@@ -71,6 +71,51 @@ export function runStoreContract(harness: StoreHarness) {
           store.createUser({ name: "Impostor", email: "MAYA.ALVAREZ@email.com", password: "whatever1" })
         ).rejects.toThrow(/already exists/i);
       });
+
+      describe("updateUser", () => {
+        it("renames the acting user", async () => {
+          const updated = await store.updateUser(DEMO, { name: "Maya A" });
+          expect(updated.name).toBe("Maya A");
+          expect((await store.getUserById(DEMO))?.name).toBe("Maya A");
+        });
+
+        it("recomputes initials from the new name", async () => {
+          // Derived, not client-supplied: an avatar that disagreed with the
+          // name printed next to it would be a bug with no obvious cause.
+          const updated = await store.updateUser(DEMO, { name: "Priya Sharma" });
+          expect(updated.initials).toBe("PS");
+        });
+
+        /**
+         * There is no target id in the signature, so "may I edit this person?"
+         * is a question the store cannot be asked. This test pins that the
+         * *acting* user is the one who changes — the only way to get it wrong
+         * would be a future overload taking a subject.
+         */
+        it("changes nobody but the actor", async () => {
+          const before = await store.getUserById(OTHER);
+          await store.updateUser(DEMO, { name: "Maya A" });
+          expect((await store.getUserById(OTHER))?.name).toBe(before?.name);
+        });
+
+        it("leaves the email and password alone", async () => {
+          const before = await store.getUserByEmail("maya.alvarez@email.com");
+          await store.updateUser(DEMO, { name: "Maya A" });
+
+          const after = await store.getUserByEmail("maya.alvarez@email.com");
+          expect(after?.id).toBe(DEMO);
+          expect(after?.passwordHash).toBe(before?.passwordHash);
+        });
+
+        it("never returns the password hash", async () => {
+          const updated = await store.updateUser(DEMO, { name: "Maya A" });
+          expect(JSON.stringify(updated)).not.toContain("passwordHash");
+        });
+
+        it("refuses an account that does not exist", async () => {
+          await expect(store.updateUser("nope", { name: "Ghost" })).rejects.toThrow();
+        });
+      });
     });
 
     describe("password reset", () => {
@@ -275,6 +320,80 @@ export function runStoreContract(harness: StoreHarness) {
 
         const after = (await store.getGroups(DEMO)).find((g) => g.id === STRANGER_GROUP);
         expect(after?.memberIds).toEqual(before?.memberIds);
+      });
+
+      describe("listing outstanding invites", () => {
+        it("lists what a member has sent", async () => {
+          await invite(DEMO, "g1");
+          const pending = await store.listGroupInvites(DEMO, "g1");
+
+          expect(pending).toHaveLength(1);
+          expect(pending[0]!.email).toBe("newcomer@example.com");
+          expect(pending[0]!.status).toBe("pending");
+        });
+
+        /**
+         * The rule worth having a test for. A pending invite is the email
+         * address of someone who has not joined, so listing them is the same
+         * disclosure `createGroupInvite` guards — read instead of written.
+         */
+        it("refuses to list them for a non-member", async () => {
+          await invite(DEMO, STRANGER_GROUP);
+          await expect(store.listGroupInvites(OTHER, STRANGER_GROUP)).rejects.toThrow();
+        });
+
+        it("does not leak the address through the error path", async () => {
+          await invite(DEMO, STRANGER_GROUP);
+          const error = await store
+            .listGroupInvites(OTHER, STRANGER_GROUP)
+            .then(() => null, (e: Error) => e);
+
+          expect(error).toBeTruthy();
+          expect(String(error)).not.toContain("newcomer@example.com");
+        });
+
+        it("refuses a group that does not exist", async () => {
+          await expect(store.listGroupInvites(DEMO, "nope")).rejects.toThrow();
+        });
+
+        it("never returns the token hash", async () => {
+          await invite(DEMO, "g1");
+          expect(JSON.stringify(await store.listGroupInvites(DEMO, "g1"))).not.toContain(HASH);
+        });
+
+        it("is empty for a group with no invites", async () => {
+          // Empty is a resolved answer, not a missing one — a client that reads
+          // it as "still loading" strands the screen on a skeleton.
+          expect(await store.listGroupInvites(DEMO, "g1")).toEqual([]);
+        });
+
+        it("omits an expired invite", async () => {
+          // The accept path already refuses it, so listing it would offer an
+          // action that cannot succeed.
+          await invite(DEMO, "g1", HASH, past());
+          expect(await store.listGroupInvites(DEMO, "g1")).toEqual([]);
+        });
+
+        it("omits one that has been accepted", async () => {
+          const newcomer = await store.createUser({
+            name: "New Comer",
+            email: "newcomer@example.com",
+            password: "supersecret1",
+          });
+          await invite(DEMO, STRANGER_GROUP);
+          await store.acceptGroupInvite(newcomer.id, HASH);
+
+          expect(await store.listGroupInvites(DEMO, STRANGER_GROUP)).toEqual([]);
+        });
+
+        it("scopes to the group asked for", async () => {
+          await invite(DEMO, "g1");
+          await invite(DEMO, "g2", "d".repeat(64));
+
+          const first = await store.listGroupInvites(DEMO, "g1");
+          expect(first).toHaveLength(1);
+          expect(first[0]!.groupId).toBe("g1");
+        });
       });
     });
 

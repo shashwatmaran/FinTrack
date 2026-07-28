@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { appLink } from "@/lib/server/app-url";
 import { generateResetToken, hashToken } from "@/lib/server/password-reset";
-import { withAuthParamsBody } from "@/lib/server/route-helpers";
+import { withAuthParams, withAuthParamsBody } from "@/lib/server/route-helpers";
 import type { GroupInvite } from "@/lib/types";
 
 const schema = z.object({
@@ -17,6 +17,21 @@ export interface CreatedInvite {
   url: string;
   expiresInDays: number;
 }
+
+/**
+ * Outstanding invitations for a group — who has been asked but has not joined.
+ *
+ * The prototype's group detail renders these beside the member list
+ * ("nikhil@example.com · Invite pending · expires in 6 days") and there was no
+ * way to read them at all before this. The store enforces membership, since a
+ * pending invite is an email address belonging to someone outside the group.
+ *
+ * Only the invite metadata comes back, never the token — the store keeps a hash
+ * and the link was shown once, at creation. There is no re-reading it here.
+ */
+export const GET = withAuthParams<{ groupId: string }, GroupInvite[]>(
+  async (params, { userId, store }) => store.listGroupInvites(userId, params.groupId)
+);
 
 /**
  * Creates an invite and hands the link straight back to whoever asked for it.
