@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { BRAND_INK, BRAND_LIME, MARK_PATH, MARK_VIEWBOX } from "@/lib/brand";
+import { BRAND_INK, BRAND_SKY, MARK_PATH, MARK_VIEWBOX } from "@/lib/brand";
 
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
@@ -25,7 +25,7 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: BRAND_LIME,
+          background: BRAND_SKY,
           border: `2px solid ${BRAND_INK}`,
           borderRadius: 7,
         }}

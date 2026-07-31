@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { BRAND_INK, BRAND_LIME, MARK_PATH, MARK_VIEWBOX } from "@/lib/brand";
+import { BRAND_INK, BRAND_SKY, MARK_PATH, MARK_VIEWBOX } from "@/lib/brand";
 
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
@@ -21,7 +21,7 @@ export default function AppleIcon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: BRAND_LIME,
+          background: BRAND_SKY,
         }}
       >
         <svg

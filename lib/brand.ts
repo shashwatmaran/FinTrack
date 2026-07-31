@@ -14,6 +14,13 @@ export const MARK_PATH = "M3 6h18M3 12h18M6 18h12";
 
 export const MARK_VIEWBOX = "0 0 24 24";
 
-/** Matches --color-ft-ink and --color-ft-lime in app/globals.css. */
+/** Matches --color-ft-ink and --color-ft-sky in app/globals.css. */
 export const BRAND_INK = "#1a1a1a";
-export const BRAND_LIME = "#beff6c";
+
+/**
+ * Sky, not lime. A lime-on-black roundel at favicon size reads as Spotify
+ * before it reads as us, and a mark whose first association is another product
+ * is doing the opposite of its job. Sky is already in the palette, so this
+ * borrows an existing token rather than introducing an eighth accent.
+ */
+export const BRAND_SKY = "#87ceeb";

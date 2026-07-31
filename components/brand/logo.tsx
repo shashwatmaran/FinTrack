@@ -7,7 +7,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
       <span
         className={cn(
           "flex flex-none items-center justify-center rounded-[9px] border-[2.5px] border-ft-ink shadow-neo-sm",
-          compact ? "h-[38px] w-[38px] bg-ft-lime" : "h-11 w-11 bg-white"
+          compact ? "h-[38px] w-[38px] bg-ft-sky" : "h-11 w-11 bg-white"
         )}
       >
         {/* Same path the favicon draws — see lib/brand.ts. */}
