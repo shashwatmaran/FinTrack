@@ -2,7 +2,6 @@ import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
-import { randomBytes } from "node:crypto";
 import { features } from "@/lib/env";
 import { signInSchema } from "@/lib/validation";
 
@@ -83,16 +82,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Imported lazily so the driver stays out of the edge bundle that only
         // needs the session check.
         const { getStore } = await import("@/lib/server/get-store");
+        const { findOrCreateOAuthUser } = await import("@/lib/server/oauth-user");
         const store = await getStore();
 
-        const existing = await store.getUserByEmail(profile.email);
-        const record =
-          existing ??
-          (await store.createUser({
-            name: profile.name ?? profile.email.split("@")[0]!,
-            email: profile.email,
-            password: randomBytes(32).toString("base64url"),
-          }));
+        /**
+         * Shared with the mobile Google endpoint. Two copies of an
+         * account-provisioning rule drift, and only one of them runs in the
+         * path you happen to be testing — the same argument
+         * `tests/store-contract.ts` exists for.
+         */
+        const record = await findOrCreateOAuthUser(store, {
+          email: profile.email,
+          name: profile.name,
+        });
 
         token.sub = record.id;
         return token;

@@ -56,6 +56,20 @@ const serverSchema = z.object({
   GOOGLE_CLIENT_SECRET: optionalString,
 
   /**
+   * The Android OAuth client id.
+   *
+   * Google issues one client per platform, and the mobile endpoint must accept
+   * *both* this and `GOOGLE_CLIENT_ID` as a token's `aud`. Credential Manager
+   * mints the token for whichever client the app presented, so accepting only
+   * one silently breaks a platform while the other keeps working.
+   *
+   * Not a secret — client ids are public by construction. What makes the
+   * Android client safe is the package name and certificate fingerprint Google
+   * checks against it, not obscurity.
+   */
+  GOOGLE_CLIENT_ID_ANDROID: optionalString,
+
+  /**
    * Phase: notifications.
    *
    * Brevo, not Resend: it verifies a single sender address rather than a whole
