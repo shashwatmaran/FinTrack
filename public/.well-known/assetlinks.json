@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.fintrack",
+      "sha256_cert_fingerprints": [
+        "C8:3D:2E:0D:FA:5F:88:3E:00:BB:7C:19:E6:33:F5:F8:F3:A1:F2:69:68:37:A5:32:1E:B2:81:2F:24:A1:A8:97"
+      ]
+    }
+  }
+]

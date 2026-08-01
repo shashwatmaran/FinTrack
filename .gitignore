@@ -43,3 +43,6 @@ next-env.d.ts
 
 # test coverage output
 /coverage
+
+.vercel
+.env*
