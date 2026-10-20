@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FinTrack · 00 Wiring checklist</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Archivo',system-ui,sans-serif;color:#4a4a44;background:#f7f6f4;-webkit-font-smoothing:antialiased}
+a{color:#4a4a44;text-decoration:none}
+a:hover{color:#2b2b28}
+.bx{border:1.5px solid #a9a9a1;background:#fff;border-radius:4px;box-sizing:border-box}
+.t{font-size:12.5px;font-weight:500}
+.s{font-size:10.5px;color:#7a7a72}
+.h{font-size:18px;font-weight:500;letter-spacing:-.2px}
+.m{font-family:'IBM Plex Mono',monospace}
+.lgt{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:#a6156b}
+.nt{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:#7a7a72}
+</style>
+</head>
+<body>
+<div style="width: 1600px; height: 990px; box-sizing: border-box; background: #f7f6f4; display: flex; flex-direction: column; overflow: hidden;">
+<div style="width:1600px;height:990px;box-sizing:border-box;background:#f7f6f4;padding:30px 34px;display:flex;flex-direction:column;gap:16px;overflow:hidden;border:1.5px solid #ddddd8;">
+  <div>
+    <span class="h" style="display:block;font-size:22px;">Wiring checklist</span>
+    <p class="m" style="margin:8px 0 0;font-size:11px;color:#7a7a72;line-height:1.5;max-width:900px;">Every prototype connection in the set. The numbered badges on each screen match the legend printed under it; this board is the same information gathered in one place, grouped by source.</p>
+  </div>
+
+  <div class="bx" style="padding:14px 16px;background:#e6e6e2;">
+    <p class="lgt" style="margin:0 0 10px;">Global &mdash; present on every signed-in screen (05, 06, 07, 08, 09&ndash;12, 13, 14, 15, 16, 17)</p>
+    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:9px;"><span style="display:inline-flex;align-items:center;height:28px;padding:0 11px;border:1.5px solid #a9a9a1;border-radius:4px;background:#fff;font-size:11px;box-sizing:border-box;">05 Dashboard</span><span style="display:inline-flex;align-items:center;height:28px;padding:0 11px;border:1.5px solid #a9a9a1;border-radius:4px;background:#fff;font-size:11px;box-sizing:border-box;">07 Groups</span><span style="display:inline-flex;align-items:center;height:28px;padding:0 11px;border:1.5px solid #a9a9a1;border-radius:4px;background:#fff;font-size:11px;box-sizing:border-box;">08 Expenses</span><span style="display:inline-flex;align-items:center;height:28px;padding:0 11px;border:1.5px solid #a9a9a1;border-radius:4px;background:#fff;font-size:11px;box-sizing:border-box;">13 Settlements</span><span style="display:inline-flex;align-items:center;height:28px;padding:0 11px;border:1.5px solid #a9a9a1;border-radius:4px;background:#fff;font-size:11px;box-sizing:border-box;">15 AI Insights</span><span style="display:inline-flex;align-items:center;height:28px;padding:0 11px;border:1.5px solid #a9a9a1;border-radius:4px;background:#fff;font-size:11px;box-sizing:border-box;">16 Activity</span><span style="display:inline-flex;align-items:center;height:28px;padding:0 11px;border:1.5px solid #a9a9a1;border-radius:4px;background:#fff;font-size:11px;box-sizing:border-box;">17 Profile</span></div>
+    <p class="m" style="margin:0;font-size:10.5px;color:#4a4a44;line-height:1.55;">Sidebar nav wires each of the six items to its screen, plus Profile &amp; Settings &rarr; 17. Topbar wires search &rarr; 19, bell &rarr; 19, + Add Expense &rarr; 20, avatar &rarr; 17. Wire these once on a component and every screen inherits them.</p>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px;align-items:start;flex-grow:1;overflow:hidden;">
+    <div>
+      <p class="lgt" style="margin:0 0 8px;">Signed out</p>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">01 Sign in</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">05 Dashboard</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">submit</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">01 Sign in</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">03 Forgot password</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">Forgot?</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">01 Sign in</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">02 Sign up</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">Create an account</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">02 Sign up</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">05 Dashboard</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">submit</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">02 Sign up</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">01 Sign in</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">Sign in instead</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">03 Forgot password</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">01 Sign in</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">Back to sign in</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">04 Reset password</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">01 Sign in</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">submit / done</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">04 Reset password</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">03 Forgot password</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">no token &rarr; new link</span>
+    </div>
+      <p class="lgt" style="margin:18px 0 8px;">Screens &rarr; modals</p>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">05 Dashboard</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">20 / 21 Add expense, Create group</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">buttons</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">07 Groups</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">21 / 24 Create group, Invite</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">buttons</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">08 Expenses</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">20 Add expense</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">button</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">09 Group detail</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">20 / 22 Add expense, Settle up</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">buttons</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">12 Members</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">24 Invite</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">+ Invite member</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">13 / 14 Settlements</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">22 Settle up</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">Settle</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">any expense row</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">23 Expense detail</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">row click</span>
+    </div>
+    </div>
+    <div>
+      <p class="lgt" style="margin:0 0 8px;">Within the shell</p>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">05 Dashboard</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">09 Group detail</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">group card</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">05 Dashboard</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">08 Expenses</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">View all</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">05 Dashboard</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">13 Settlements</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">Settle Up</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">05 Dashboard</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">15 AI Insights</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">See all insights</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">06 Dashboard empty</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">21 Create group</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">first-run CTA</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">07 Groups</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">09 Group detail</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">group card</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">09&ndash;12 Group detail</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">each other</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">tab bar</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">09&ndash;12 Group detail</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">07 Groups</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">&larr; All groups</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">13 Settlements</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">14 simplified</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">Simplify debts</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">14 simplified</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">13 Settlements</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">Show all debts</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">17 Profile</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">19 Overlays</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">Change password</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">17 Profile</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">01 Sign in</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">Sign out</span>
+    </div>
+      <p class="lgt" style="margin:18px 0 8px;">Modals &amp; system back out to</p>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">20 Add expense</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">the screen behind</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">close / cancel / save</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">21 Create group</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">09 Group detail</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">create</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">22 Settle up</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">13 Settlements</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">log payment</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">23 Expense detail</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">the screen behind</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">close / done / delete</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">24 Invite</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">07 Groups</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">done</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">18 System states</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">05 / 07</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">recovery buttons</span>
+    </div>
+      <div style="display:grid;grid-template-columns:186px 16px 1fr 150px;gap:9px;align-items:center;padding:6px 0;border-bottom:1.5px solid #eeeeea;">
+      <span style="font-size:11px;">19 Overlays</span>
+      <span class="m" style="font-size:11px;color:#a6156b;">&rarr;</span>
+      <span style="font-size:11px;">09 / 08 / 17</span>
+      <span class="m" style="font-size:9.5px;color:#7a7a72;">results, modal buttons</span>
+    </div>
+    </div>
+  </div>
+
+  <p class="m" style="margin:0;font-size:10px;color:#7a7a72;">In-place changes &mdash; filter pills, toggles, participant chips, confirm / dispute, copy link &mdash; are marked on each screen and need no connection.</p>
+</div>
+</div>
+</body>
+</html>
